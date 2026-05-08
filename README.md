@@ -197,6 +197,12 @@ embeds.skip_embed(idx)
 embeds.run_complete_embeds(...)
 embeds.session_rollup_embed(session_id, duration, runs_count, remediation, growth)
 
+# Send-time chunking — keeps every payload within Discord's 6000-char per-embed
+# and per-message caps. Use for any list of embeds before .send():
+embeds.split_embeds_for_messages(embeds_list) -> list[list[Embed]]
+embeds.rebuild_files_for_embeds(group) -> list[discord.File]
+embeds.finalize_footer(groups, *, footer_text=DEFAULT_FOOTER) -> None
+
 charts.field_distribution(field_counts, title)
 charts.runs_over_time(timestamps, granularity, title)
 charts.delta_diverging(deltas, title)
@@ -299,7 +305,7 @@ Cost is dominated by the grading call (largest input + output, on Opus). The tra
 ├── templates/dreyfus.md  # Cross-domain skill-stage taxonomy (stitched into every industry)
 ├── templates/<industry>/ # Per-industry prompt markdown (score, generation, refine, grader)
 ├── assets/icons/         # PNG icons used by embeds (sourced from Lucide, https://lucide.dev)
-├── docs/                 # Long-form documentation
+├── docs/                 # GITIGNORED: local-only design notes / port plans
 ├── data/                 # GITIGNORED: runtime state (active session, meta, scheduler db)
 └── sessions/             # GITIGNORED: archived closed sessions
 ```
