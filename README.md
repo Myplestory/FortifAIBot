@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/fortifai_logo_minimal.png" alt="FortifAI" width="320">
-</p>
+<img src="assets/fortifai_logo_minimal.png" alt="FortifAI" width="100%">
 
 # FortifAI
 
