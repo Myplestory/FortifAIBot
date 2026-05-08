@@ -31,6 +31,34 @@ As LLMs become indispensable in technical workflows, distinguishing genuine comp
 - **Reminders & sweep.** Recurring DM nudges via APScheduler (sqlite-backed); `/sweep` reclaims abandoned runs, regrades failures, and heals the meta.json catalog from run history (modes: `cleanup`, `regrade`, `catalog`, `all`).
 - **8 SWE fields out of the box.** `templates/swe/` ships graded against Dreyfus + SWECOM + SFIA; drop a `templates/<industry>/` directory to add a domain.
 
+## Examples
+
+### A `/knowledgeharden` run, end to end
+
+After 5 questions and 5 refinement probes, the grader scores against all five bands and emits a summary, per-question breakdown, and a list of practical follow-ups.
+
+**Run summary** — industry, band, duration, fields/topics covered, aggregate score, career level, YOE estimate, strengths/gaps:
+
+<img src="assets/example/gradeaggregate.png" alt="Run-complete summary embed" width="700">
+
+**Per-question breakdown** — scenario, the user's response, and the refinement probe that targets the highest-leverage gap:
+
+<img src="assets/example/questiongrade.png" alt="Per-question scenario, response, refinement" width="700">
+
+**Assessment, scores, literature, exercises** — assessment narrative, per-band score table (`B1..B5` × pre/post/Δ), 2 literature entries per question (mix driven by the post-refinement score), and a separate practical-exercises embed at the end of the run:
+
+<img src="assets/example/practicalprac.png" alt="Per-question assessment, score table, literature, and practical exercises" width="700">
+
+### Reference & analytics
+
+`/bands` — explains B1–B5 against Dreyfus, IEEE SWECOM, SFIA v9, and the Google/Meta/Amazon/Uber engineering ladders, with a calibration verdict against your latest run:
+
+<img src="assets/example/bands.png" alt="/bands output: B1-B5 ladder with framework citations and industry-ladder mapping" width="700">
+
+`/analyze bias` — flags fields you've over-indexed relative to uniform coverage so the next session can rebalance:
+
+<img src="assets/example/analyze.png" alt="/analyze bias output with over-indexed fields and a divergent bar chart" width="700">
+
 ## Governance
 
 Off-the-shelf LLMs will quiz you, but their questions drift in difficulty, bias toward fashionable topics, and grade against whatever rubric they invent in the moment. Three constraints anchor every call:

@@ -63,6 +63,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 "Look up the rubric or the field/topic graph.",
                 [
                     ("/rubric [field] [topics]", "Framework citations (Dreyfus / SWECOM / SFIA) and SFIA scope."),
+                    ("/bands [score] [target_band]", "Explain B1–B5 and what an aggregate score means. No args = interpret your latest run."),
                     ("/directory [industry] [field]", "Industries → fields → topics directory."),
                 ],
             ),

@@ -13,6 +13,7 @@ import parse
 import scheduler
 from commands import (
     analyze as analyze_cmd,
+    bands as bands_cmd,
     directory as directory_cmd,
     help as help_cmd,
     knowledgeharden as knowledgeharden_cmd,
@@ -49,6 +50,7 @@ stats_cmd.register(tree)
 session_cmd.register(tree)
 help_cmd.register(tree)
 rubric_cmd.register(tree)
+bands_cmd.register(tree)
 directory_cmd.register(tree)
 schedule_cmd.register(tree)
 sweep_cmd.register(tree)
