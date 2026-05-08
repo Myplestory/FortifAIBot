@@ -28,7 +28,7 @@ As LLMs become indispensable in technical workflows, distinguishing genuine comp
 - **Sessions.** `/sessionbegin`, `/sessionend`, `/sessionswitch`, `/sessionlist`, `/sessionrestore` — multiple concurrent contexts per user, runs persisted across restarts, deduplicated reading list emitted on close. `/sessionbegin` optionally declares default `industry`/`fields`/`topics`/`domain`/`stack`, inherited by `/knowledgeharden` when per-run args are unset.
 - **Analytics.** `/stats runcount|timeline|session` and `/analyze trends|gaps|bias` surface coverage, growth deltas, and field-rotation bias as embeds with inline matplotlib charts.
 - `**/transcript`.** Dumps the full Q&A, grading, and literature for any past run.
-- **Reminders & sweep.** Recurring DM nudges via APScheduler (sqlite-backed); `/sweep` reclaims abandoned runs, regrades failures, and heals the meta.json catalog from run history (modes: `cleanup`, `regrade`, `catalog`, `all`).
+- **Reminders & sweep.** Recurring DM nudges via APScheduler (sqlite-backed); `/sweep` reclaims abandoned runs, regrades failures, and heals the meta.json catalog from run history (modes: `cleanup`, `regrade`, `regrade-last`, `catalog`, `all`). `regrade-last` force-regrades the most recent run regardless of prior grading state — use after prompt or template changes to re-score with the new rules.
 - **8 SWE fields out of the box.** `templates/swe/` ships graded against Dreyfus + SWECOM + SFIA; drop a `templates/<industry>/` directory to add a domain.
 
 ## Examples

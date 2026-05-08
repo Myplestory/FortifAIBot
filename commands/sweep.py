@@ -15,6 +15,7 @@ _SWEEP_MODES = [
     app_commands.Choice(name="All — cleanup + regrade + catalog (recommended)", value="all"),
     app_commands.Choice(name="Cleanup only — drop runs with no answers", value="cleanup"),
     app_commands.Choice(name="Regrade only — re-run grading on failed runs", value="regrade"),
+    app_commands.Choice(name="Regrade last — force re-grade the latest run (even if already graded)", value="regrade-last"),
     app_commands.Choice(name="Catalog only — heal meta.json from your run history", value="catalog"),
 ]
 
@@ -40,7 +41,7 @@ async def _regrade_one(user_id: str, session_id: str, run: dict[str, Any], sessi
 
 def register(tree: app_commands.CommandTree) -> None:
     @tree.command(name="sweep", description="Sweep abandoned runs, re-grade failed gradings, and heal the meta.json catalog.")
-    @app_commands.describe(mode="cleanup, regrade, catalog, or all. Default: all.")
+    @app_commands.describe(mode="cleanup, regrade, regrade-last, catalog, or all. Default: all.")
     @app_commands.choices(mode=_SWEEP_MODES)
     async def sweep(interaction: discord.Interaction, mode: app_commands.Choice[str] | None = None):
         user_id = str(interaction.user.id)
@@ -58,6 +59,10 @@ def register(tree: app_commands.CommandTree) -> None:
         do_cleanup = chosen in ("cleanup", "all")
         do_regrade = chosen in ("regrade", "all")
         do_catalog = chosen in ("catalog", "all")
+        # regrade-last is mutually exclusive with the other modes — it's a force
+        # re-grade of the latest run regardless of existing grading state, used
+        # to apply prompt/template changes to a previously-graded run.
+        do_regrade_last = chosen == "regrade-last"
 
         await interaction.response.defer(ephemeral=True, thinking=True)
 
@@ -82,6 +87,37 @@ def register(tree: app_commands.CommandTree) -> None:
                     regraded_ids.append(str(r.get("id", "?")))
                 else:
                     failed_regrades.append((str(r.get("id", "?")), err))
+
+        # Force re-grade of the latest run, regardless of prior grading state.
+        # Mutually exclusive with do_regrade above.
+        force_regrade_body: str | None = None
+        force_regrade_failed = False
+        if do_regrade_last:
+            active_after = parse.find_active_session_by_id(user_id, session_id) or {}
+            runs = active_after.get("runs", []) or []
+            if not runs:
+                force_regrade_body = "_No runs in this session to regrade._"
+            else:
+                latest = runs[-1]
+                latest_id = str(latest.get("id", "?"))
+                if latest.get("status") != "complete":
+                    force_regrade_body = (
+                        f"⚠️ Latest run `#{latest_id}` is not complete "
+                        f"(status `{latest.get('status', '?')}`)."
+                    )
+                    force_regrade_failed = True
+                elif not parse._run_has_any_response(latest):
+                    force_regrade_body = f"⚠️ Latest run `#{latest_id}` has no responses to grade."
+                    force_regrade_failed = True
+                else:
+                    ok, err = await _regrade_one(user_id, session_id, latest, active_after)
+                    if ok:
+                        force_regrade_body = (
+                            f"✅ Re-graded run `#{latest_id}` (forced; previous grading state ignored)."
+                        )
+                    else:
+                        force_regrade_body = f"⚠️ Re-grade failed for run `#{latest_id}` — {err}"
+                        force_regrade_failed = True
 
         catalog_summary: dict[str, Any] | None = None
         if do_catalog:
@@ -111,6 +147,9 @@ def register(tree: app_commands.CommandTree) -> None:
                 body_lines.append("_No runs needed re-grading._")
             fields_listed.append(("♻️ Regrade", "\n".join(body_lines), False))
 
+        if do_regrade_last and force_regrade_body is not None:
+            fields_listed.append(("♻️ Regrade last", force_regrade_body, False))
+
         if do_catalog and catalog_summary is not None:
             runs_n = catalog_summary["runs_processed"]
             fields_added = catalog_summary["fields_added"]
@@ -128,8 +167,13 @@ def register(tree: app_commands.CommandTree) -> None:
                 body = " ".join(parts)
             fields_listed.append(("📚 Catalog", body, False))
 
-        color = embeds.OK_GREEN if not failed_regrades else embeds.WARN_AMBER
-        icon = embeds.ICON_NAMES["regrade"] if do_regrade and not do_cleanup and not do_catalog else embeds.ICON_NAMES["sweep"]
+        any_failure = bool(failed_regrades) or force_regrade_failed
+        color = embeds.OK_GREEN if not any_failure else embeds.WARN_AMBER
+        regrade_only = (
+            (do_regrade and not do_cleanup and not do_catalog and not do_regrade_last)
+            or do_regrade_last
+        )
+        icon = embeds.ICON_NAMES["regrade"] if regrade_only else embeds.ICON_NAMES["sweep"]
         embed, files = embeds.build(
             title="Housekeeping complete",
             description=f"Mode: **{chosen}** · session **`{active.get('name', '?')}`** (id `{active.get('id', '?')}`).",
