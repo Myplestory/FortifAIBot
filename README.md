@@ -4,13 +4,13 @@
 
 A protocol for band-calibrated technical knowledge recall hardening. Question generation, refinement, and grading anchored to cited competence frameworks (Dreyfus) and SWE industry standards (IEEE SWECOM, SFIA). What gets tested and how it's scored come from published criteria, not the LLM's judgment.
 
-FortifAI is a Discord bot calibrated to software engineering rooted in real world practice, however the pipeline (`[phases/](phases/)`) is platform and industry agnostic and contains zero Discord coupling; both surfaces can be swapped without touching the LLM contract.
+FortifAI is a Discord bot calibrated to software engineering rooted in real world industry practice, however the pipeline (`[phases/](phases/)`) is platform and industry agnostic and contains zero Discord coupling; both surfaces can be swapped without touching the LLM contract.
 
 ## Thesis
 
-### **The assymetry between cognitive outsourcing and foundational understanding can be solved with the same innovation driving the gap.**
+### **The asymmetry between cognitive outsourcing and foundational understanding is mitigated with the same innovation driving the gap through methodical application of governance and information gating.**
 
-As LLMs become indispensable in technical workflows, distinguishing genuine competency from LLM-augmented fluency gets harder for hiring managers, mentors, and practitioners self-assessing alike. FortifAI inverts the pressure: rather than using an LLM to get to or produce the answer, it uses one as a constrained tutor that generates band-calibrated questions, probes the highest-leverage gap in the reply, and scopes literature to where the answerer actually is. Ethical AI usage should be bidirectional: Leverage the demonstrated output velocity and efficiency AI assistance has demonstrated, and also ensure the knowledge substrate underlying responsible use is preserved through its inherent capability as an on-demand calibrated tutor. 
+As LLMs become indispensable in technical workflows, distinguishing genuine competency from LLM-augmented fluency gets harder for hiring managers, mentors, and practitioners self-assessing alike. FortifAI inverts the pressure: rather than using an LLM to get to or produce the answer, it uses one as a constrained tutor that generates band-calibrated questions, probes the highest-leverage gap in the reply, and scopes literature to where the answerer actually is. Ethical AI usage should be bidirectional: leverage the demonstrated output velocity and efficiency AI assistance has demonstrated, while ensuring the human knowledge substrate underlying responsible use is preserved and audited through its inherent capability as an on-demand knowledge provider. 
 
 ## Applications
 
@@ -20,22 +20,28 @@ As LLMs become indispensable in technical workflows, distinguishing genuine comp
 
 > **NOT A CREDENTIALING REPLACEMENT.** This tool does not certify competence and does not substitute for accredited programs. It is a *support* layer, meant to help practitioners prepare for, identify gaps relative to, and meet criteria that certain industries and institutions actually adjudicate (SFIA-aligned employers, IEEE certifications, Dreyfus-informed mentorship). Outputs are diagnostic; treat them as a study companion, not a verdict.  
 >
-> **COMPETENCE DOES NOT EQUATE TO MASTERY.** This tool surfaces conceptual and foundational competence with rigor, but does NOT surface innate mastery of the topics. Mastery can only be met with deeper understanding and years working within the topic, competence is the substrate upon which mastery can be built on.
+> **COMPETENCE DOES NOT EQUATE TO MASTERY.** This tool surfaces conceptual and foundational competence with rigor, but does NOT surface innate mastery of the topics. Mastery can only be met with deeper understanding and years working within the topic, competence is the substrate upon which mastery can be built on with confidence and efficiency.
 
 ## Features
 
-- `**/knowledgeharden` quiz loop.** 5 scenario short answer questions (one per field) calibrated to a target band (B1–B5), a refinement probe on the highest-leverage gap, and multi-band grading with 2 literature picks per question. **Time constrained on purpose, 10min for initial response + 5min for refinement** .
-- **Sessions.** `/sessionbegin`, `/sessionend`, `/sessionswitch`, `/sessionlist`, `/sessionrestore` — multiple concurrent contexts per user, runs persisted across restarts, deduplicated reading list emitted on close. `/sessionbegin` optionally declares default `industry`/`fields`/`topics`/`domain`/`stack`, inherited by `/knowledgeharden` when per-run args are unset.
-- **Analytics.** `/stats runcount|timeline|session` and `/analyze trends|gaps|bias` surface coverage, growth deltas, and field-rotation bias as embeds with inline matplotlib charts.
-- `**/transcript`.** Dumps the full Q&A, grading, and literature for any past run.
-- **Reminders & sweep.** Recurring DM nudges via APScheduler (sqlite-backed); `/sweep` reclaims abandoned runs, regrades failures, and heals the meta.json catalog from run history (modes: `cleanup`, `regrade`, `regrade-last`, `catalog`, `all`). `regrade-last` force-regrades the most recent run regardless of prior grading state — use after prompt or template changes to re-score with the new rules.
-- **8 SWE fields out of the box.** `templates/swe/` ships graded against Dreyfus + SWECOM + SFIA; drop a `templates/<industry>/` directory to add a domain.
+- ### **Quiz loop.** `/knowledgeharden`
+5 scenario short answer questions (one per field) calibrated to a target band (B1–B5), a refinement probe on the highest-leverage gap, and multi-band grading with 2 literature picks per question. **Time-constrained on purpose: 10 min for initial response + 5 min for refinement** — pressure to recall surfaces real intuition and conceptual understanding, and disincentivizes bypasses.
+- ### **Sessions.** `/sessionbegin`, `/sessionend`, `/sessionswitch`, `/sessionlist`, `/sessionrestore`
+Multiple concurrent contexts per user, runs persisted across restarts, deduplicated reading list emitted on close. `/sessionbegin` optionally declares default `industry`/`fields`/`topics`/`domain`/`stack`, inherited by `/knowledgeharden` when per-run args are unset.
+- ### **Analytics.** `/stats runcount|timeline|session` and `/analyze trends|gaps|bias` 
+Surface coverage, growth deltas, and field-rotation bias as embeds with inline matplotlib charts.
+- ### **Transcript.** `/transcript`
+Dumps the full Q&A, grading, and literature for any past run.
+- ### **Reminders & sweep.** `/schedule add`, `/schedule list`, `/schedule remove`, `/sweep`
+Recurring DM nudges via APScheduler (sqlite-backed) managed through `/schedule add|list|remove`. `/sweep` reclaims abandoned runs, regrades failures, and heals the meta.json catalog from run history (modes: `cleanup`, `regrade`, `regrade-last`, `catalog`, `all`). `regrade-last` force-regrades the most recent run regardless of prior grading state — use after prompt or template changes to re-score with the new rules.
+- ### **8 SWE fields out of the box.** `templates/swe/` 
+Ships graded against Dreyfus + SWECOM + SFIA; drop a `templates/<industry>/` directory to add a domain.
 
 ## Examples
 
 ### A `/knowledgeharden` run, end to end
 
-After 5 questions and 5 refinement probes, the grader scores against all five bands and emits a summary, per-question breakdown, and a list of practical follow-ups.
+After 5 questions and 5 refinement probes, the grader scores against all five bands and emits a summary, per-question breakdown, and a list of cited literature to study and suggestions on practical builder oriented projects.
 
 **Run summary** — industry, band, duration, fields/topics covered, aggregate score, career level, YOE estimate, strengths/gaps:
 
