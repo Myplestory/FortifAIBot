@@ -1,6 +1,11 @@
 <img src="assets/fortifai_logo_minimal.png" alt="FortifAI" width="100%">
 
-# FortifAI
+# FortifAI  
+&nbsp;
+
+> "for other self directed learners across the world. may knowledge always remain yours to reach for." 
+
+&nbsp;
 
 A protocol for band-calibrated technical knowledge recall hardening. Question generation, refinement, and grading anchored to cited competence frameworks (Dreyfus) and SWE industry standards (IEEE SWECOM, SFIA). What gets tested and how it's scored come from published criteria, not the LLM's judgment.
 
@@ -8,7 +13,7 @@ FortifAI is a Discord bot calibrated to software engineering rooted in real worl
 
 ## Thesis
 
-### **The asymmetry between cognitive outsourcing and foundational understanding is mitigated with the same innovation driving the gap through methodical application of governance and information gating.**
+***The asymmetry that LLMs create between cognitive outsourcing and foundational understanding can be closed by the same tool that creates it through information gating, citeable anchoring, and validated outputs.***
 
 As LLMs become indispensable in technical workflows, distinguishing genuine competency from LLM-augmented fluency gets harder for hiring managers, mentors, and practitioners self-assessing alike. FortifAI inverts the pressure: rather than using an LLM to get to or produce the answer, it uses one as a constrained tutor that generates band-calibrated questions, probes the highest-leverage gap in the reply, and scopes literature to where the answerer actually is. Ethical AI usage should be bidirectional: leverage the demonstrated output velocity and efficiency AI assistance has demonstrated, while ensuring the human knowledge substrate underlying responsible use is preserved and audited through its inherent capability as an on-demand knowledge provider. 
 
@@ -37,9 +42,9 @@ Recurring DM nudges via APScheduler (sqlite-backed) managed through `/schedule a
 - ### **8 SWE fields out of the box.** `templates/swe/` 
 Ships graded against Dreyfus + SWECOM + SFIA; drop a `templates/<industry>/` directory to add a domain.
 
-## Examples
+## Examples & Demo
 
-### A `/knowledgeharden` run, end to end
+### A `/knowledgeharden` Run, End to End
 
 After 5 questions and 5 refinement probes, the grader scores against all five bands and emits a summary, per-question breakdown, and a list of cited literature to study and suggestions on practical builder oriented projects.
 
@@ -55,7 +60,7 @@ After 5 questions and 5 refinement probes, the grader scores against all five ba
 
 <img src="assets/example/practicalprac.png" alt="Per-question assessment, score table, literature, and practical exercises" width="700">
 
-### Reference & analytics
+### Reference & Analytics
 
 `/bands` — explains B1–B5 against Dreyfus, IEEE SWECOM, SFIA v9, and the career estimations against published Google/Meta/Amazon/Uber engineering ladders, with a calibration verdict against your latest run:
 
@@ -65,15 +70,15 @@ After 5 questions and 5 refinement probes, the grader scores against all five ba
 
 <img src="assets/example/analyze.png" alt="/analyze bias output with over-indexed fields and a divergent bar chart" width="700">
 
-## Governance
+## Operational Governance
 
 Off-the-shelf LLMs will quiz you, but their questions drift in difficulty, bias toward fashionable topics, and grade against whatever rubric they invent in the moment. Three constraints anchor every call:
 
-1. **Empirical anchor.** Every system prompt is stitched in three layers: cross-domain Dreyfus skill stages from `[templates/dreyfus.md](templates/dreyfus.md)`, domain-specific seniority frameworks from `[templates/<industry>/score.md](templates/swe/score.md)` (SWECOM and SFIA for swe), then the procedural template (`generation.md` or `grader.md`). Both generator and grader see the same band ladder, so questions are calibrated against the rubric they'll later be scored on.
+1. **Citeable anchor.** Every system prompt is stitched in three layers: cross-domain Dreyfus skill stages from `[templates/dreyfus.md](templates/dreyfus.md)`, domain-specific seniority frameworks from `[templates/<industry>/score.md](templates/swe/score.md)` (SWECOM and SFIA for swe), then the procedural template (`generation.md` or `grader.md`). Both generator and grader see the same band ladder, so questions are calibrated against the rubric they'll later be scored on — and every band score's `reason` anchors back to verbatim text from a published, citeable source.
 2. **Strict output contracts.** Every LLM call is parsed against a JSON schema and validated; failures retry once with the validator's error echoed back. Questions must cover exactly 5 fields; literature must be exactly 2 entries per question; the literature mix is deterministic in the post-refinement score.
 3. **Field-rotation weighting.** When fields aren't explicit, the generator weights toward fields with fewer recorded topics in `meta.json`, countering the LLM's bias toward systems-distributed / ml-engineering / ai-llm content.
 
-## Accelerate
+## Accelerate Understanding
 
 Ad-hoc AI-assisted study fragments across disconnected chat sessions: useful in the moment, hard to consolidate. The protocol turns disconnected runs into a longitudinal study loop:
 
@@ -139,7 +144,7 @@ templates/             Cross-domain `dreyfus.md` + per-industry dirs (score, gen
 assets/icons/          PNG icons referenced by ICON_NAMES (sourced from Lucide, https://lucide.dev)
 ```
 
-### Dependency direction
+### Dependency Direction
 
 ```
 content.shared (leaf: design tokens)
@@ -164,11 +169,11 @@ parse.py        ←────── analytics.py, content.{stats, analyze}
 
 Analytics is decoupled from rendering by design: `analytics.py` produces pure `StatsView` / `AnalyzeView` records; rendering lives in `content/stats.py` and `content/analyze.py`. Command handlers are thin: fetch view, hand to renderer, send.
 
-## Public surface
+## Public Surface
 
 Entry points for adapting FortifAI to a new domain, embedding it in a different chat surface, or wrapping pieces in your own pipeline.
 
-### LLM phases ([generate.py](generate.py))
+### LLM Phases ([generate.py](generate.py))
 
 ```python
 generate.generate(*, industry, fields, topics, answerer_band, domain, stack, context_notes) -> dict
@@ -288,14 +293,14 @@ On first run the app creates `data/` (active sessions, scheduler sqlite, meta.js
 | **Discord guild for instant sync** | `DEV_GUILD_ID` env var                                                  | Without this, slash-command schema changes propagate via Discord's global tree (~1 hour).                                               |
 
 
-## Discord caveats
+## Discord Caveats
 
 - **Tied to discord.py** (3.x). All slash commands in [commands/](commands/) assume a `discord.Interaction`.
 - **Tied to a single bot identity** per deployment via `DISCORD_BOT_TOKEN`. If you fork, register your own at [https://discord.com/developers/applications](https://discord.com/developers/applications).
 - **Permissions required:** read/send messages, create public threads (used by `/knowledgeharden`), manage messages in those threads. Scheduled reminders DM the user, so they must have DMs from server members enabled.
 - **Porting off Discord:** keep [phases/](phases/), [parse.py](parse.py), [analytics.py](analytics.py), [llm.py](llm.py); replace [commands/](commands/) and [main.py](main.py) with your front-end. Reuse [content/](content/) only if your output medium speaks Discord-style embeds.
 
-## Token cost
+## Token Cost
 
 A token tracker is **deferred**: no per-user, per-session accounting yet. The notes below are rough order-of-magnitude estimates from prompt sizes; don't budget against them until the tracker lands.
 
@@ -316,7 +321,7 @@ Two cost-shaping mechanics already in place:
 
 Cost is dominated by the grading call (largest input + output, on Opus). The tracker will instrument per-phase/per-run/per-user tokens (already in `stream.get_final_message().usage`), cumulative `/sessionend` totals, and per-user budget caps. Until then, treat each run as non-trivial Opus cost and watch your Anthropic console.
 
-## Repo layout
+## Repo Layout
 
 ```
 .
@@ -348,7 +353,7 @@ Cost is dominated by the grading call (largest input + output, on Opus). The tra
 
 Pre-1.0. Single-author project, source-released as a reference implementation. Discord front-end is in regular use; phase pipeline is stable. Token tracker, multi-industry templates, and a non-Discord front-end are open work items.
 
-### Defensibility roadmap
+### Defensibility Roadmap
 
 The grading thesis (separating genuine competency from LLM-augmented fluency) is only defensible if the prep signal is empirically falsifiable. A May 2026 self-audit identified eleven ways FortifAI could mislead a studier; five were addressed in-band:
 
@@ -362,4 +367,6 @@ The remaining six findings — reliability harness (A), rubric gameability (C), 
 
 ## License
 
-MIT
+MIT. The codebase is free to use, fork, and improve.
+
+The **FortifAI** name and logo are not part of the MIT grant. Forks may reuse the code freely; redistribution under the FortifAI name or branding requires explicit consent.
