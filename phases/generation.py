@@ -9,6 +9,7 @@ from typing import Any
 import llm
 import parse
 
+from phases import band_data
 from phases.shared import (
     DEFAULT_INDUSTRY,
     SCORE_GRADER_SEPARATOR,
@@ -41,6 +42,11 @@ def build_generation_system(industry: str = DEFAULT_INDUSTRY) -> str:
     """
     dreyfus = _load_root_template("dreyfus")
     score = _load_template(industry, "score")
+    # Substitute YAML-rendered SFIA facets table so the generator sees the same
+    # band ladder + facet language the grader will score against. Idempotent on
+    # templates without the placeholder.
+    if "{{SFIA_FACETS_TABLE}}" in score:
+        score = score.replace("{{SFIA_FACETS_TABLE}}", band_data.render_sfia_facets_md())
     generation = _load_template(industry, "generation")
     return (
         dreyfus

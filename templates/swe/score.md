@@ -48,14 +48,13 @@ SFIA defines seven levels of responsibility. The relevant levels with **verbatim
 
 > **Level 5 (Ensure, advise):** Autonomy: "Works under broad direction. Work is often self-initiated. Is fully accountable for meeting allocated technical and/or group objectives." Complexity: "Performs an extensive range and variety of complex technical and/or professional work activities. Undertakes work which requires the application of fundamental principles in a wide and often unpredictable range of contexts." Influence: "Influences organisation, customers, suppliers and partners. Makes decisions which impact the success of assigned work, i.e. results, deadlines and budget. Has significant influence over the allocation and management of resources appropriate to given assignments." (SFIA 8/9, Level 5.)
 
-**Mapping to band scores:**
+**Mapping to band scores (all five SFIA generic-attribute facets):**
 
-| SFIA Level | Verbatim Autonomy | Verbatim Complexity | Band |
-|---|---|---|---|
-| Level 1-2 (Follow/Assist) | "Works under close/routine direction. Uses little/limited discretion." | "Performs routine activities in a structured environment." | Entry (score 1-3) |
-| Level 3 (Apply) | "Works under general direction…Uses discretion in identifying and responding to complex issues related to own assignments." | "Performs a range of work, sometimes complex and non-routine." | Entry (score 4-5) / Mid (score 1-3) |
-| Level 4 (Enable) | "Exercises substantial personal responsibility and autonomy. Uses substantial discretion in identifying and responding to complex issues." | "Broad range of complex technical or professional activities." | Mid (score 3-5) |
-| Level 5 (Ensure/Advise) | "Work is often self-initiated. Is fully accountable for meeting allocated technical and/or group objectives." | "Extensive range and variety of complex technical and/or professional work activities…in a wide and often unpredictable range of contexts." | Senior (score 3-5) |
+SFIA's responsibility ladder is defined by five generic attributes — autonomy, complexity, influence, knowledge, business skills. Earlier versions of this mapping captured only autonomy and complexity, which let answers satisfy the rubric while ignoring influence/knowledge/business — exactly the failure mode the grader has to avoid. The full table:
+
+{{SFIA_FACETS_TABLE}}
+
+When the grader assigns a band score, the per-band `reason` MUST reflect consideration of all five facets at the answerer's primary band. See `templates/swe/grader.md` → "SFIA Reason Coverage Invariant" for the rule.
 
 **Empirical basis:** SFIA has been maintained since 2000 and is used by organizations globally for workforce planning, skills assessment, and career development. Its levels are calibrated against market salary benchmarks and organizational role definitions across industries. The SFIA Foundation is a global not-for-profit organization; the framework is freely accessible and updated through industry consultation.
 

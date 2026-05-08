@@ -368,6 +368,11 @@ def persist_run(
             "duration": humanize_duration(started_at, ended_at),
             "status": "complete",
             "aggregated_score": None,
+            "aggregated_score_pre": None,
+            "aggregated_score_post": None,
+            "assisted_delta": None,
+            "fail_count_pre": 0,
+            "fail_count_post": 0,
             "field_delta": {"runs": {}, "time": {}},
             "topic_delta": {"runs": {}, "time": {}},
             "career_level": "",
@@ -591,6 +596,11 @@ def apply_grading(user_id: str, session_id: str, run_id: str, grading: dict[str,
 
     agg = grading.get("run_aggregation", {}) or {}
     target["aggregated_score"] = agg.get("aggregated_score")
+    target["aggregated_score_pre"] = agg.get("aggregated_score_pre")
+    target["aggregated_score_post"] = agg.get("aggregated_score_post")
+    target["assisted_delta"] = agg.get("assisted_delta")
+    target["fail_count_pre"] = agg.get("fail_count_pre", 0)
+    target["fail_count_post"] = agg.get("fail_count_post", 0)
     target["career_level"] = agg.get("career_level", "")
     target["strengths"] = agg.get("strengths", {"fields": [], "topics": []})
     target["weaknesses"] = agg.get("weaknesses", {"fields": [], "topics": []})

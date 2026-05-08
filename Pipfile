@@ -12,6 +12,7 @@ apscheduler = ">=3.10"
 sqlalchemy = ">=2.0"
 cairosvg = "*"
 requests = "*"
+pyyaml = ">=6.0"
 
 [dev-packages]
 

@@ -16,6 +16,7 @@ from content.shared import (
     build,
     format_remaining,
 )
+from phases import band_data
 
 
 def question_embed(
@@ -233,9 +234,14 @@ def run_complete_embeds(
 
     if success:
         agg = grading.get("run_aggregation", {}) or {}
-        score = agg.get("aggregated_score")
+        # Finding B: headline switches to unassisted (pre-refinement) score.
+        # Legacy runs only carry aggregated_score (post); fall back to it so
+        # transcripts of older runs still render.
+        score_pre = agg.get("aggregated_score_pre")
+        score_post = agg.get("aggregated_score_post", agg.get("aggregated_score"))
+        delta = agg.get("assisted_delta")
+        fail_pre = agg.get("fail_count_pre", 0) or 0
         career = agg.get("career_level") or "—"
-        score_str = f"**{score}**" if isinstance(score, (int, float)) else "**—**"
         summary = grading.get("session_summary") or {}
         ceiling = summary.get("median_band_ceiling") or "—"
         rng_low = summary.get("range_low") or "—"
@@ -243,14 +249,31 @@ def run_complete_embeds(
         yoe = summary.get("aggregate_yoe_equivalent") or "—"
         confidence = summary.get("confidence") or "—"
 
-        summary_fields.append((
-            "Aggregate",
-            (
-                f"score {score_str} · career level **{career}** · YOE **{yoe}**\n"
-                f"median ceiling **{ceiling}** · range **{rng_low}–{rng_high}** · confidence **{confidence}**"
-            ),
-            False,
-        ))
+        pre_str = f"**{score_pre}**" if isinstance(score_pre, (int, float)) else "**—**"
+        post_str = f"**{score_post}**" if isinstance(score_post, (int, float)) else "**—**"
+        delta_str = delta if isinstance(delta, str) else "—"
+
+        # Finding E: when the unassisted run has too many critical failures, the
+        # headline replaces the career-level keyword with a failure count so a
+        # polarized run cannot mask gaps behind a competent/proficient label.
+        cf_cfg = band_data.critical_failure_config()
+        if isinstance(fail_pre, int) and fail_pre >= cf_cfg.suppress_keyword_at:
+            aggregate_value = (
+                f"score (unassisted) {pre_str} · "
+                f"**blocked by {fail_pre} critical failure(s)**\n"
+                f"assisted recovery: {delta_str} (post {post_str}) · YOE **{yoe}**\n"
+                f"median ceiling **{ceiling}** · range **{rng_low}–{rng_high}** · "
+                f"confidence **{confidence}**"
+            )
+        else:
+            aggregate_value = (
+                f"score (unassisted) {pre_str} · career level **{career}** · YOE **{yoe}**\n"
+                f"assisted recovery: {delta_str} (post {post_str})\n"
+                f"median ceiling **{ceiling}** · range **{rng_low}–{rng_high}** · "
+                f"confidence **{confidence}**"
+            )
+
+        summary_fields.append(("Aggregate", aggregate_value, False))
 
         strengths = agg.get("strengths") or {}
         weaknesses = agg.get("weaknesses") or {}
@@ -345,12 +368,22 @@ def transcript_embeds(
     grading data onto it. We synthesize the `grading` shape `run_complete_embeds`
     expects so a single render path serves both flows.
     """
-    has_grading = run.get("aggregated_score") is not None
+    # `aggregated_score_pre` is the post-Finding-B authoritative signal; legacy
+    # runs only have `aggregated_score`, so accept either as a "graded" marker.
+    has_grading = (
+        run.get("aggregated_score_pre") is not None
+        or run.get("aggregated_score") is not None
+    )
     grading: dict[str, Any] | None = None
     if has_grading:
         grading = {
             "run_aggregation": {
                 "aggregated_score": run.get("aggregated_score"),
+                "aggregated_score_pre": run.get("aggregated_score_pre"),
+                "aggregated_score_post": run.get("aggregated_score_post"),
+                "assisted_delta": run.get("assisted_delta"),
+                "fail_count_pre": run.get("fail_count_pre", 0),
+                "fail_count_post": run.get("fail_count_post", 0),
                 "career_level": run.get("career_level", ""),
                 "strengths": run.get("strengths") or {"fields": [], "topics": []},
                 "weaknesses": run.get("weaknesses") or {"fields": [], "topics": []},

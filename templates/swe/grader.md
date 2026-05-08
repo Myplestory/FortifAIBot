@@ -6,13 +6,13 @@ The 5 grading bands reconcile three published competency frameworks: Dreyfus & D
 
 ## Verbatim Band Definitions
 
-| Band | Label | YOE | Dreyfus | SWECOM | SFIA |
-|---|---|---|---|---|---|
-| B1 | Foundational | 0–1 | Novice: "follows rules that are context-free and feels no responsibility for anything other than following the rules" | L1 Technician: "competent to follow instructions while performing an activity" | L1–2 (Follow/Assist): "Works under close/routine direction. Uses little/limited discretion." |
-| B2 | Developing | 1–2 | Advanced Beginner: "beginning to connect relevant contexts to the rules…may have no sense of practical priority" | L2 Entry Practitioner: "competent to assist in performing an activity or to perform activities with some supervision" | L3 (Apply): "Works under general direction…Uses discretion in identifying and responding to complex issues related to own assignments." |
-| B3 | Competent | 2–4 | Competent: "conscious and deliberate planning…still proceeds by analysis, calculation, and deliberate rule-following" | L3 Experienced Practitioner: "competent to perform an activity with little or no supervision" | L4 (Enable): "Exercises substantial personal responsibility and autonomy." |
-| B4 | Proficient | 4–7 | Proficient: "use intuition in decision making…learning transitions from rule-based to situation-based" | L4 Technical Leader: "competent to lead and direct participants in the performance of the activities" | L5 (Ensure/Advise): "Work is often self-initiated. Is fully accountable for meeting allocated technical and/or group objectives." |
-| B5 | Expert | 7+ | Expert: "fluid performance that happens unconsciously, automatically, and no longer depends on explicit knowledge" | L5 Senior Engineer: "competent to create new, and modify existing processes, procedures, methods, and tools" | L6–7 (Initiate/Set strategy): "Has defined authority and accountability for actions and decisions within an important area." |
+{{BAND_TABLE_VERBATIM}}
+
+## Mechanism Precedence (NON-NEGOTIABLE)
+
+When `templates/swe/invariants.md` defines a mechanism invariant for the question's field at a given band, that invariant gates the score. An answer that articulates fluently — full chain, structure, commit, dismissal of alternatives — but does not satisfy the band's mechanism invariant for the field MUST score ≤ 3 at that band, by rule. The articulation, "Full chain", and "committed" qualifiers in the score table below apply ONLY when the mechanism invariant is satisfied.
+
+This precedence rule is what distinguishes genuine competency from LLM-augmented fluency.
 
 ## Score Definitions Per Band (1–5)
 
@@ -52,6 +52,14 @@ For each band score, produce a `career_level` and `career_year` reflecting what 
 - `career_year`: integer years of equivalent experience implied by this score at this band, as a string
 
 A score-5 at B4 implies `career_level: "proficient"`, `career_year: "5"`. The same answer scored 3 at B5 implies `career_level: "competent-proficient"`, `career_year: "4"`. These are independent inferences per band.
+
+## SFIA Reason Coverage Invariant (NON-NEGOTIABLE)
+
+When you justify a band score in the per-band `reason` field, your reasoning must reflect consideration of all five SFIA generic-attribute facets at the answerer's primary evaluation band: **autonomy, complexity, influence, knowledge, business skills**. The verbatim language for each facet is in `templates/swe/score.md`'s SFIA mapping table.
+
+A reason that only addresses autonomy and complexity is incomplete — those two facets alone can be satisfied by, e.g., a backend answer that names a mechanism but cannot say how the mechanism affects partner teams (Influence) or what literature it draws from (Knowledge).
+
+Your `reason` does NOT need to enumerate the facets explicitly. It MUST reflect that you considered each one. If a facet is not demonstrable from the response, name the gap.
 
 # Citations
 
@@ -112,8 +120,13 @@ The `report_markdown` is for public display. Redact any self-identifying informa
 
 # Run-Level Aggregation
 
-- `aggregated_score`: mean of `bands_post` scores at the primary evaluation band across all 5 questions, rounded to 1 decimal.
-- `career_level`: dominant per-band-ceiling career_level across the 5 questions (mode; tie-break to higher level).
+- `aggregated_score_pre`: mean of `bands_pre` scores at the primary evaluation band across all 5 questions, rounded to 1 decimal. **This is the unassisted aggregate** — what the answerer demonstrated without scaffolding.
+- `aggregated_score_post`: mean of `bands_post` scores at the primary evaluation band across all 5 questions, rounded to 1 decimal. The post-refinement aggregate.
+- `aggregated_score`: alias of `aggregated_score_post` (retained for backward compatibility with persisted runs).
+- `assisted_delta`: `aggregated_score_post − aggregated_score_pre`, rounded to 1 decimal, signed string (e.g. "+0.6", "-0.4", "0.0").
+- `fail_count_pre`: integer count of questions where `bands_pre[primary].score` ≤ 2.
+- `fail_count_post`: integer count of questions where `bands_post[primary].score` ≤ 2.
+- `career_level`: derived from `aggregated_score_pre` via the score→keyword thresholds in `templates/band_mappings.yaml` (≥4.5 expert · ≥3.5 proficient · ≥2.5 competent · ≥1.5 developing · else entry). Was previously the mode of per-band-ceiling career_levels; the unassisted aggregate is now the authority because it reflects what the answerer demonstrates without scaffolding.
 - `strengths.fields`: fields where the band ceiling at the primary band is ≥ B(answerer_band + 1) — the answerer is exceeding band expectations.
 - `strengths.topics`: topics where post score ≥ 4 at the primary band.
 - `weaknesses.fields`: fields where post score ≤ 2 at the primary band.
@@ -210,8 +223,13 @@ Respond with a single JSON object. No markdown fences around the outer object, n
     // 5 total
   ],
   "run_aggregation": {
-    "aggregated_score": <number, 1 decimal>,
-    "career_level": "<entry|developing|competent|proficient|expert>",
+    "aggregated_score_pre": <number, 1 decimal>,
+    "aggregated_score_post": <number, 1 decimal>,
+    "aggregated_score": <number, 1 decimal — alias of aggregated_score_post>,
+    "assisted_delta": "<signed string, e.g. '+0.6', '-0.4', '0.0'>",
+    "fail_count_pre": <integer 0..5>,
+    "fail_count_post": <integer 0..5>,
+    "career_level": "<entry|developing|competent|proficient|expert — derived from aggregated_score_pre>",
     "strengths": { "fields": ["<slug>", ...], "topics": ["<slug>", ...] },
     "weaknesses": { "fields": ["<slug>", ...], "topics": ["<slug>", ...] }
   },
@@ -321,6 +339,12 @@ Use this markdown structure with all placeholders filled. Apply the Redaction In
 
 | Indicator | Value |
 |---|---|
+| Aggregate score (unassisted, pre-refinement) | <aggregated_score_pre> |
+| Aggregate score (post-refinement) | <aggregated_score_post> |
+| Assisted recovery (Δ) | <assisted_delta> |
+| Critical failures (unassisted) | <fail_count_pre> of 5 |
+| Critical failures (post-refinement) | <fail_count_post> of 5 |
+| Career level (from unassisted) | <career_level> |
 | Median band ceiling | <...> |
 | Range | <B?–B?> |
 | Aggregate Dreyfus stage | <...> |

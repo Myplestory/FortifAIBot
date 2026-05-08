@@ -4,3 +4,4 @@ python-dotenv>=1.0
 matplotlib>=3.8
 apscheduler>=3.10
 sqlalchemy>=2.0
+pyyaml>=6.0

@@ -1,0 +1,161 @@
+# Single source of truth for B1-B5 band metadata.
+#
+# Consumed by:
+#   - phases/band_data.py (loader + render helpers)
+#   - commands/bands.py at import time (replaces _BAND_LADDER tuple)
+#   - phases/grading.py via build-time stitching
+#       (replaces hardcoded mapping tables in templates/swe/grader.md and templates/swe/score.md)
+#   - phases/generation.py via build-time stitching (score.md SFIA facets table)
+#
+# Authority: templates/swe/grader.md verbatim band table is canonical because
+# the grader is what produces scores. commands/bands.py was off-by-one on SFIA
+# at every band B2-B5; reconciled here against grader.md and score.md.
+#
+# SFIA Influence/Knowledge/Business verbatim text is the SFIA v9 generic-attribute
+# language at sfia-online.org/en/sfia-9/responsibilities. L4 Influence already
+# exists verbatim in templates/swe/score.md L47; L5 in L49. The remaining facets
+# (Knowledge, Business skills) and the L1-2/L3/L6-7 entries are lifted from the
+# same SFIA Foundation source. One-shot copy at write time; do not re-fetch.
+
+version: 1
+authority: "templates/swe/grader.md verbatim band table (the grader is what scores)"
+
+bands:
+  B1:
+    label: Foundational
+    yoe_range: "0-1"
+    dreyfus:
+      stage: Novice
+      verbatim: "follows rules that are context-free and feels no responsibility for anything other than following the rules"
+    swecom:
+      level: L1
+      title: Technician
+      verbatim: "competent to follow instructions while performing an activity"
+    sfia:
+      level: "L1-2"
+      label: "Follow/Assist"
+      autonomy: "Works under close/routine direction. Uses little/limited discretion in attending to enquiries. Is expected to seek guidance in unexpected situations."
+      complexity: "Performs routine activities in a structured environment."
+      influence: "Interacts with immediate colleagues. Has a basic awareness of organisational standards."
+      knowledge: "Has a basic generic knowledge appropriate to area of work. Applies newly acquired knowledge to develop new skills."
+      business_skills: "Demonstrates an organised approach to work. Follows instructions and established procedures. Communicates with required clarity, accuracy and understanding."
+    industry_ladder: "Google L3 (early) / Meta E3 (early) / Amazon L4 (early SDE-I)"
+    blurb: "Follows context-free rules; cannot exercise discretionary judgment. Needs close direction."
+    score_keyword_anchor: entry
+
+  B2:
+    label: Developing
+    yoe_range: "1-2"
+    dreyfus:
+      stage: "Advanced Beginner"
+      verbatim: "beginning to connect relevant contexts to the rules…may have no sense of practical priority"
+    swecom:
+      level: L2
+      title: "Entry Level Practitioner"
+      verbatim: "competent to assist in performing an activity or to perform activities with some supervision"
+    sfia:
+      level: L3
+      label: Apply
+      autonomy: "Works under general direction. Receives specific direction, accepts guidance and has work reviewed at agreed milestones. Uses discretion in identifying and responding to complex issues related to own assignments. Determines when issues should be escalated to a higher level."
+      complexity: "Performs a range of work, sometimes complex and non-routine, in a variety of environments."
+      influence: "Interacts with and influences colleagues. Has working level contact with customers and suppliers."
+      knowledge: "Has sound generic, domain and specialist knowledge necessary to perform effectively in the organisation typically gained from recognised bodies of knowledge and organisational information."
+      business_skills: "Demonstrates effective communication skills. Plans, schedules and monitors own work (and that of others where applicable) competently within limited deadlines and according to relevant legislation, standards and procedures."
+    industry_ladder: "Google L3 (late) / Meta E3 (late) / Amazon L4 (SDE-I)"
+    blurb: "Recognizes patterns from facts; ships with supervision; limited discretion in unfamiliar work."
+    score_keyword_anchor: developing
+
+  B3:
+    label: Competent
+    yoe_range: "2-4"
+    dreyfus:
+      stage: Competent
+      verbatim: "conscious and deliberate planning…still proceeds by analysis, calculation, and deliberate rule-following"
+    swecom:
+      level: L3
+      title: "Experienced Practitioner"
+      verbatim: "competent to perform an activity with little or no supervision"
+    sfia:
+      level: L4
+      label: Enable
+      autonomy: "Works under general direction within a clear framework of accountability. Exercises substantial personal responsibility and autonomy. Uses substantial discretion in identifying and responding to complex issues and assignments as they relate to the deliverable/scope of work."
+      complexity: "Work includes a broad range of complex technical or professional activities, in a variety of contexts."
+      influence: "Influences customers, suppliers and partners at account level. Makes decisions which influence the success of projects and team objectives."
+      knowledge: "Has a sound generic, domain and specialist knowledge necessary to perform effectively in the organisation. Rapidly absorbs new information and applies it effectively."
+      business_skills: "Demonstrates effective communication skills. Plans, schedules and monitors work to meet time and quality targets and in accordance with relevant legislation and procedures. Absorbs technical information quickly when it is presented systematically."
+    industry_ladder: "Google L4 / Meta E4 / Amazon L5 (SDE-II) / Uber L4"
+    blurb: "Conscious deliberate planning; little/no supervision; complex non-routine work via standard methods."
+    score_keyword_anchor: competent
+
+  B4:
+    label: Proficient
+    yoe_range: "4-7"
+    dreyfus:
+      stage: Proficient
+      verbatim: "use intuition in decision making…learning transitions from rule-based to situation-based"
+    swecom:
+      level: L4
+      title: "Technical Leader"
+      verbatim: "competent to lead and direct participants in the performance of the activities in one or more skills or skill areas"
+    sfia:
+      level: L5
+      label: "Ensure/Advise"
+      autonomy: "Works under broad direction. Work is often self-initiated. Is fully accountable for meeting allocated technical and/or group objectives."
+      complexity: "Performs an extensive range and variety of complex technical and/or professional work activities. Undertakes work which requires the application of fundamental principles in a wide and often unpredictable range of contexts."
+      influence: "Influences organisation, customers, suppliers and partners. Makes decisions which impact the success of assigned work, i.e. results, deadlines and budget. Has significant influence over the allocation and management of resources appropriate to given assignments."
+      knowledge: "Has a comprehensive understanding of recognised generic industry bodies of knowledge and specialist bodies of knowledge as necessary. Has sufficient breadth and depth of knowledge and skill to be able to deal with situations outside of own area of expertise."
+      business_skills: "Demonstrates leadership. Communicates effectively, formally and informally, with colleagues, subordinates and customers. Demonstrates analytical and systematic approach to problem solving."
+    industry_ladder: "Google L5 / Meta E5 / Amazon L6 (Senior SDE / SDE-III) / Uber L5"
+    blurb: "Intuitive in familiar contexts; substantial autonomy; leads/directs others within a skill area."
+    score_keyword_anchor: proficient
+
+  B5:
+    label: Expert
+    yoe_range: "7+"
+    dreyfus:
+      stage: Expert
+      verbatim: "fluid performance that happens unconsciously, automatically, and no longer depends on explicit knowledge"
+    swecom:
+      level: L5
+      title: "Senior Software Engineer"
+      verbatim: "competent to create new, and modify existing processes, procedures, methods, and tools"
+    sfia:
+      level: "L6-7"
+      label: "Initiate/Set strategy"
+      autonomy: "Has defined authority and accountability for actions and decisions within a significant area of work, including technical, financial and quality aspects. Establishes organisational objectives and delegates assignments. Accountable for actions and decisions taken by self and subordinates."
+      complexity: "Performs highly complex work activities covering technical, financial and quality aspects. Contributes to the formulation and implementation of IT strategy. Creatively applies a wide range of technical and/or management principles."
+      influence: "Influences policy formation on the contribution of own specialism to business objectives. Influences a significant part of own organisation. Develops influential relationships with internal and external customers/suppliers/partners at senior management level, including industry leaders."
+      knowledge: "Has a broad understanding of all aspects of IT and deep understanding of own specialism(s). Understands and communicates the role and impact of IT in the employing organisation and promotes compliance with relevant legislation."
+      business_skills: "Communicates effectively, both formally and informally. Analyses, designs, plans, executes and evaluates work to time, cost and quality targets. Demonstrates leadership. Mentors more junior colleagues."
+    industry_ladder: "Google L6+ / Meta E6+ / Amazon L7 (Principal) / Uber Staff (L5b/L6)"
+    blurb: "Fluid intuitive performance; creates new processes; sets organizational direction."
+    score_keyword_anchor: expert
+
+# Score (1-5) → keyword + Dreyfus stage label.
+# Used by phases/band_data.py:score_to_keyword(); same thresholds as the
+# pre-remediation commands/bands.py:_score_to_keyword (behaviour-preserving).
+# After Finding B, the headline keyword is derived from aggregated_score_pre.
+score_thresholds:
+  - min: 4.5
+    keyword: expert
+    stage: Expert
+  - min: 3.5
+    keyword: proficient
+    stage: Proficient
+  - min: 2.5
+    keyword: competent
+    stage: Competent
+  - min: 1.5
+    keyword: developing
+    stage: "Advanced Beginner"
+  - min: 0.0
+    keyword: entry
+    stage: Novice
+
+# Finding E. When the count of unassisted-failed questions reaches
+# suppress_keyword_at, the headline replaces the career-level keyword with
+# "blocked by N critical failures" so a polarized run cannot mask gaps behind
+# a competent/proficient label.
+critical_failure:
+  fail_score_threshold: 2     # bands_pre[primary].score <= this counts as a critical failure
+  suppress_keyword_at: 2      # this many failures suppresses the career_level keyword

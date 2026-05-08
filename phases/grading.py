@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 import llm
 import parse
 
+from phases import band_data
 from phases.shared import (
     DEFAULT_INDUSTRY,
     SCORE_GRADER_SEPARATOR,
+    TEMPLATES_ROOT,
     _extract_first_json_object,
     _load_root_template,
     _load_template,
@@ -19,6 +22,31 @@ from phases.shared import (
 log = logging.getLogger(__name__)
 
 _LIT_TYPES = {"remediation", "growth"}
+_DELTA_RE = re.compile(r"^[+\-]?\d+\.\d$")
+
+
+def _load_optional_template(industry: str, name: str) -> str | None:
+    """Load an industry template if present; return None if missing.
+
+    Used for the invariants.md mechanism oracle, which is currently only shipped
+    for swe. Other industries can opt in by adding their own invariants.md.
+    """
+    p = TEMPLATES_ROOT / industry / f"{name}.md"
+    if not p.exists() or p.stat().st_size == 0:
+        return None
+    return _load_template(industry, name)
+
+
+def _stitch_band_data(text: str) -> str:
+    """Substitute YAML-rendered tables into template placeholders. Idempotent —
+    a no-op when the placeholders are absent (e.g. non-swe industries that
+    don't use the placeholder convention).
+    """
+    if "{{BAND_TABLE_VERBATIM}}" in text:
+        text = text.replace("{{BAND_TABLE_VERBATIM}}", band_data.render_band_table_md())
+    if "{{SFIA_FACETS_TABLE}}" in text:
+        text = text.replace("{{SFIA_FACETS_TABLE}}", band_data.render_sfia_facets_md())
+    return text
 
 
 class GradingError(RuntimeError):
@@ -27,25 +55,29 @@ class GradingError(RuntimeError):
 
 def build_grader_system(industry: str = DEFAULT_INDUSTRY) -> str:
     """Stitched grader system prompt:
-        templates/dreyfus.md            (cross-domain skill-stage taxonomy)
-        + templates/<industry>/score.md   (domain-specific frameworks: SWECOM/SFIA for swe)
-        + templates/<industry>/grader.md  (procedural rules + output schema)
+        templates/dreyfus.md                  (cross-domain skill-stage taxonomy)
+        + templates/<industry>/score.md         (domain-specific frameworks: SWECOM/SFIA for swe)
+        + templates/<industry>/invariants.md    (per-field mechanism oracle, optional)
+        + templates/<industry>/grader.md        (procedural rules + output schema)
 
-    Dreyfus is the cross-discipline empirical authority and applies to any domain.
-    The domain score file carries industry-specific seniority/competency frameworks.
-    The grader template carries the procedural rules. Stitching all three gives the
-    LLM the full citation context before the procedure.
+    The invariants file gates articulation credit on mechanism satisfaction; it's
+    stitched into the grader only (NOT the generator) so the model that scores
+    answers sees the per-field mechanism floors, while the model that generates
+    questions does not pre-tell itself what answer is on-mechanism.
+
+    YAML placeholders inside score.md and grader.md are substituted post-load so
+    the band ladder (commands/bands.py / grader.md / score.md previously
+    out-of-sync) renders from a single source of truth.
     """
     dreyfus = _load_root_template("dreyfus")
-    score = _load_template(industry, "score")
-    grader = _load_template(industry, "grader")
-    return (
-        dreyfus
-        + SCORE_GRADER_SEPARATOR
-        + score
-        + SCORE_GRADER_SEPARATOR
-        + grader
-    )
+    score = _stitch_band_data(_load_template(industry, "score"))
+    invariants = _load_optional_template(industry, "invariants")
+    grader = _stitch_band_data(_load_template(industry, "grader"))
+    parts = [dreyfus, score]
+    if invariants:
+        parts.append(invariants)
+    parts.append(grader)
+    return SCORE_GRADER_SEPARATOR.join(parts)
 
 
 def _validate_literature_entry(entry: dict[str, Any], where: str) -> None:
@@ -108,6 +140,16 @@ def _validate_question_grading(qg: dict[str, Any], expected_id: int, answerer_ba
         )
 
 
+def _primary_score(qg: dict[str, Any], tag: str, answerer_band: str) -> int | None:
+    for b in qg.get(tag) or []:
+        if isinstance(b, dict) and b.get("band") == answerer_band:
+            raw = b.get("score")
+            if isinstance(raw, (int, float)):
+                return int(raw)
+            return None
+    return None
+
+
 def _validate_grading(out: dict[str, Any], answerer_band: str) -> None:
     for key in (
         "session_summary",
@@ -126,9 +168,53 @@ def _validate_grading(out: dict[str, Any], answerer_band: str) -> None:
     for i, q in enumerate(qg, start=1):
         _validate_question_grading(q, i, answerer_band)
     agg = out["run_aggregation"]
-    for key in ("aggregated_score", "career_level", "strengths", "weaknesses"):
+    for key in (
+        "aggregated_score",
+        "aggregated_score_pre",
+        "aggregated_score_post",
+        "assisted_delta",
+        "fail_count_pre",
+        "fail_count_post",
+        "career_level",
+        "strengths",
+        "weaknesses",
+    ):
         if key not in agg:
             raise GradingError(f"run_aggregation missing key {key!r}")
+    for key in ("aggregated_score", "aggregated_score_pre", "aggregated_score_post"):
+        v = agg[key]
+        if not isinstance(v, (int, float)) or not (1.0 <= float(v) <= 5.0):
+            raise GradingError(f"run_aggregation.{key} must be a number in [1.0, 5.0], got {v!r}")
+    delta = agg["assisted_delta"]
+    if not isinstance(delta, str) or not _DELTA_RE.match(delta):
+        raise GradingError(
+            f"run_aggregation.assisted_delta must be a signed 1-decimal string (e.g. '+0.6'), got {delta!r}"
+        )
+    for key in ("fail_count_pre", "fail_count_post"):
+        v = agg[key]
+        if not isinstance(v, int) or not (0 <= v <= 5):
+            raise GradingError(f"run_aggregation.{key} must be an integer in [0, 5], got {v!r}")
+    # Self-consistency: recompute fail_count from the per-question primary band
+    # scores and reject mismatch. Catches model arithmetic drift.
+    fail_threshold = band_data.critical_failure_config().fail_score_threshold
+    expected_pre = sum(
+        1 for q in qg
+        if (s := _primary_score(q, "bands_pre", answerer_band)) is not None and s <= fail_threshold
+    )
+    expected_post = sum(
+        1 for q in qg
+        if (s := _primary_score(q, "bands_post", answerer_band)) is not None and s <= fail_threshold
+    )
+    if agg["fail_count_pre"] != expected_pre:
+        raise GradingError(
+            f"run_aggregation.fail_count_pre={agg['fail_count_pre']} disagrees with "
+            f"per-question recompute={expected_pre} at primary band {answerer_band}"
+        )
+    if agg["fail_count_post"] != expected_post:
+        raise GradingError(
+            f"run_aggregation.fail_count_post={agg['fail_count_post']} disagrees with "
+            f"per-question recompute={expected_post} at primary band {answerer_band}"
+        )
     mu = out["meta_updates"]
     if not isinstance(mu, dict):
         raise GradingError("meta_updates must be an object")

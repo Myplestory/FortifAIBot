@@ -5,107 +5,59 @@ from discord import app_commands
 
 import embeds
 import parse
+from phases import band_data
 
 
-# Aligned with templates/dreyfus.md + templates/swe/score.md.
-# Industry ladder mappings cross-referenced against:
-#   - templates/swe/score.md L68 (Google L3–L5+ → bands)
-#   - levels.fyi consensus (Google/Meta/Amazon/Uber leveling, public data)
-#   - the user-shared feature matrix v3.0 (B3=L4/E4/SDE-2, B4=L5/E5/SDE-3,
-#     B5=L6+/E6+/Principal)
-# Bands B1 and B2 sit *within* a single industry rung (Google L3 / Meta E3 /
-# Amazon L4) — the Dreyfus + SWECOM/SFIA distinction differentiates within
-# that rung (intern/pre-shipping vs. shipping with supervision).
-#
-# Each row: band, project label (matches BAND_CHOICES in commands/session.py),
-# Dreyfus stage, SWECOM level, SFIA level, industry-ladder mapping with YOE,
-# one-line behavioral description.
-_BAND_LADDER: list[tuple[str, str, str, str, str, str, str]] = [
-    ("B1",
-     "Foundational",
-     "Novice",
-     "L1 Technician",
-     "L1 Follow",
-     "Google L3 (early) / Meta E3 (early) / Amazon L4 (early SDE-I) · ~0–1 YOE",
-     "Follows context-free rules; cannot exercise discretionary judgment. Needs close direction."),
-    ("B2",
-     "Developing",
-     "Advanced Beginner",
-     "L2 Entry Practitioner",
-     "L2 Assist",
-     "Google L3 (late) / Meta E3 (late) / Amazon L4 (SDE-I) · ~1–2 YOE",
-     "Recognizes patterns from facts; ships with supervision; limited discretion in unfamiliar work."),
-    ("B3",
-     "Competent",
-     "Competent",
-     "L3 Experienced Practitioner",
-     "L3 Apply",
-     "Google L4 / Meta E4 / Amazon L5 (SDE-II) / Uber L4 · ~2–5 YOE",
-     "Conscious deliberate planning; little/no supervision; complex non-routine work via standard methods."),
-    ("B4",
-     "Proficient",
-     "Proficient",
-     "L4 Technical Leader",
-     "L4 Enable",
-     "Google L5 / Meta E5 / Amazon L6 (Senior SDE / SDE-III) / Uber L5 · ~5–8 YOE",
-     "Intuitive in familiar contexts; substantial autonomy; leads/directs others within a skill area."),
-    ("B5",
-     "Expert",
-     "Expert",
-     "L5 Senior SW Engineer",
-     "L5 Ensure/Advise",
-     "Google L6+ / Meta E6+ / Amazon L7 (Principal) / Uber Staff (L5b/L6) · ~8+ YOE",
-     "Fluid intuitive performance; creates new processes; sets organizational direction."),
-]
-
-
-# Score (1–5) → career_level keyword used by the grader (templates/swe/grader.md).
-# Half-band tolerance, matching the per-band-ceiling inference rule.
-def _score_to_keyword(score: float) -> tuple[str, str]:
-    """Returns (career_level keyword, Dreyfus stage label)."""
-    if score >= 4.5:
-        return "expert", "Expert"
-    if score >= 3.5:
-        return "proficient", "Proficient"
-    if score >= 2.5:
-        return "competent", "Competent"
-    if score >= 1.5:
-        return "developing", "Advanced Beginner"
-    return "entry", "Novice"
-
-
-def _interpret(score: float, target_band: str | None, *, inferred_from_run: bool) -> list[tuple[str, str, bool]]:
-    keyword, stage = _score_to_keyword(score)
+def _interpret(
+    score_pre: float,
+    target_band: str | None,
+    *,
+    inferred_from_run: bool,
+    score_post: float | None = None,
+    assisted_delta: str | None = None,
+) -> list[tuple[str, str, bool]]:
+    """Render score interpretation rows. After Finding B, the unassisted
+    (pre-refinement) score is the headline; the assisted-recovery delta is a
+    secondary row when post + delta are available.
+    """
+    keyword, stage = band_data.score_to_keyword(score_pre)
     rows: list[tuple[str, str, bool]] = []
 
-    headline = f"`{score:.1f}` of 5.0 → effective stage **{stage}** (`{keyword}`)"
+    headline = f"`{score_pre:.1f}` of 5.0 (unassisted) → effective stage **{stage}** (`{keyword}`)"
     if inferred_from_run:
         headline += " · pulled from your latest graded run"
     rows.append(("Aggregate", headline, False))
 
+    if isinstance(score_post, (int, float)) and assisted_delta:
+        rows.append((
+            "Assisted recovery",
+            f"post `{score_post:.1f}` · Δ {assisted_delta} (improvement attributable to refinement scaffolding)",
+            False,
+        ))
+
     if target_band and target_band in parse.VALID_BANDS:
         target_int = int(target_band[1])
-        delta = score - target_int
+        delta = score_pre - target_int
         if abs(delta) < 0.2:
-            cal = f"On target — you're delivering at-band performance for **{target_band}**."
+            cal = f"On target — you're delivering at-band performance for **{target_band}** unassisted."
         elif delta < 0:
             below = abs(delta)
             cal = (
-                f"≈ {below:.1f} band(s) below target **{target_band}**. "
+                f"≈ {below:.1f} band(s) below target **{target_band}** (unassisted). "
                 f"`/transcript` shows the per-band scores per question to locate the drag."
             )
         else:
             cal = (
-                f"≈ {delta:.1f} band(s) above target **{target_band}**. Consider raising "
+                f"≈ {delta:.1f} band(s) above target **{target_band}** (unassisted). Consider raising "
                 f"your `/sessionbegin band:` next session for harder questions."
             )
         rows.append(("Calibration vs. target", cal, False))
 
     rows.append((
         "​",
-        "_The `career_level` keyword the grader emits in `/transcript` is the mode of "
-        "per-question ceilings — not a direct function of the aggregate. Use this "
-        "mapping as an approximation; the transcript is authoritative._",
+        "_The `career_level` keyword the grader emits in `/transcript` is derived from "
+        "the unassisted aggregate (pre-refinement). Use this mapping as an approximation; "
+        "the transcript is authoritative._",
         False,
     ))
 
@@ -135,15 +87,30 @@ def register(tree: app_commands.CommandTree) -> None:
     ):
         target_str = target_band.value if target_band else None
         inferred = False
+        score_post: float | None = None
+        assisted_delta: str | None = None
 
         if score is None:
             user_id = str(interaction.user.id)
             active = parse.find_active_session(user_id)
             if active:
-                graded = [r for r in (active.get("runs") or []) if r.get("aggregated_score") is not None]
+                graded = [
+                    r for r in (active.get("runs") or [])
+                    if r.get("aggregated_score_pre") is not None
+                    or r.get("aggregated_score") is not None
+                ]
                 if graded:
                     latest = graded[-1]
-                    score = float(latest.get("aggregated_score"))
+                    # Prefer aggregated_score_pre (Finding B). Legacy runs only have
+                    # aggregated_score (post-refinement), so fall back to it.
+                    pre_val = latest.get("aggregated_score_pre")
+                    score = float(pre_val if pre_val is not None else latest.get("aggregated_score"))
+                    post_raw = latest.get("aggregated_score_post")
+                    if isinstance(post_raw, (int, float)):
+                        score_post = float(post_raw)
+                    delta_raw = latest.get("assisted_delta")
+                    if isinstance(delta_raw, str):
+                        assisted_delta = delta_raw
                     if target_str is None:
                         target_str = latest.get("band") or active.get("band_preference")
                     inferred = True
@@ -157,13 +124,15 @@ def register(tree: app_commands.CommandTree) -> None:
             return
 
         ladder_fields: list[tuple[str, str, bool]] = []
-        for band, label, dreyfus, swecom, sfia, yoe, blurb in _BAND_LADDER:
+        for band_id, row in band_data.load_band_mappings().bands.items():
+            yoe_str = f"{row.industry_ladder} · ~{row.yoe_range} YOE"
             body = (
-                f"**{label}** · {yoe}\n"
-                f"Dreyfus: {dreyfus} · SWECOM {swecom} · SFIA {sfia}\n"
-                f"_{blurb}_"
+                f"**{row.label}** · {yoe_str}\n"
+                f"Dreyfus: {row.dreyfus.stage} · SWECOM {row.swecom.level} {row.swecom.title} · "
+                f"SFIA {row.sfia.level} ({row.sfia.label})\n"
+                f"_{row.blurb}_"
             )
-            ladder_fields.append((band, body, False))
+            ladder_fields.append((band_id, body, False))
 
         ladder_fields.append((
             "Sources",
@@ -221,10 +190,16 @@ def register(tree: app_commands.CommandTree) -> None:
             interp_embed, interp_files = embeds.build(
                 title="Score interpretation",
                 description=(
-                    "How your aggregate maps onto the band ladder above. Per-question and "
-                    "per-band breakdowns live in `/transcript`."
+                    "How your unassisted aggregate maps onto the band ladder above. "
+                    "Per-question and per-band breakdowns live in `/transcript`."
                 ),
-                fields=_interpret(score, target_str, inferred_from_run=inferred),
+                fields=_interpret(
+                    score,
+                    target_str,
+                    inferred_from_run=inferred,
+                    score_post=score_post,
+                    assisted_delta=assisted_delta,
+                ),
                 icon=embeds.ICON_NAMES["results"],
                 footer=None,
             )

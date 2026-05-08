@@ -4,7 +4,7 @@
 
 A protocol for band-calibrated technical knowledge recall hardening. Question generation, refinement, and grading anchored to cited competence frameworks (Dreyfus) and SWE industry standards (IEEE SWECOM, SFIA). What gets tested and how it's scored come from published criteria, not the LLM's judgment.
 
-FortifAI is a Discord bot calibrated to software engineering, however the pipeline (`[phases/](phases/)`) is platform and industry agnostic and contains zero Discord coupling; both surfaces can be swapped without touching the LLM contract.
+FortifAI is a Discord bot calibrated to software engineering rooted in real world practice, however the pipeline (`[phases/](phases/)`) is platform and industry agnostic and contains zero Discord coupling; both surfaces can be swapped without touching the LLM contract.
 
 ## Thesis
 
@@ -24,7 +24,7 @@ As LLMs become indispensable in technical workflows, distinguishing genuine comp
 
 ## Features
 
-- `**/knowledgeharden` quiz loop.** 5 scenario short answer questions (one per field) calibrated to a target band (B1–B5), a refinement probe on the highest-leverage gap, and multi-band grading with 2 literature picks per question. Time constrained.
+- `**/knowledgeharden` quiz loop.** 5 scenario short answer questions (one per field) calibrated to a target band (B1–B5), a refinement probe on the highest-leverage gap, and multi-band grading with 2 literature picks per question. **Time constrained on purpose, 10min for initial response + 5min for refinement** .
 - **Sessions.** `/sessionbegin`, `/sessionend`, `/sessionswitch`, `/sessionlist`, `/sessionrestore` — multiple concurrent contexts per user, runs persisted across restarts, deduplicated reading list emitted on close. `/sessionbegin` optionally declares default `industry`/`fields`/`topics`/`domain`/`stack`, inherited by `/knowledgeharden` when per-run args are unset.
 - **Analytics.** `/stats runcount|timeline|session` and `/analyze trends|gaps|bias` surface coverage, growth deltas, and field-rotation bias as embeds with inline matplotlib charts.
 - `**/transcript`.** Dumps the full Q&A, grading, and literature for any past run.
@@ -51,7 +51,7 @@ After 5 questions and 5 refinement probes, the grader scores against all five ba
 
 ### Reference & analytics
 
-`/bands` — explains B1–B5 against Dreyfus, IEEE SWECOM, SFIA v9, and the Google/Meta/Amazon/Uber engineering ladders, with a calibration verdict against your latest run:
+`/bands` — explains B1–B5 against Dreyfus, IEEE SWECOM, SFIA v9, and the career estimations against published Google/Meta/Amazon/Uber engineering ladders, with a calibration verdict against your latest run:
 
 <img src="assets/example/bands.png" alt="/bands output: B1-B5 ladder with framework citations and industry-ladder mapping" width="700">
 
@@ -341,6 +341,18 @@ Cost is dominated by the grading call (largest input + output, on Opus). The tra
 ## Status
 
 Pre-1.0. Single-author project, source-released as a reference implementation. Discord front-end is in regular use; phase pipeline is stable. Token tracker, multi-industry templates, and a non-Discord front-end are open work items.
+
+### Defensibility roadmap
+
+The grading thesis (separating genuine competency from LLM-augmented fluency) is only defensible if the prep signal is empirically falsifiable. A May 2026 self-audit identified eleven ways FortifAI could mislead a studier; five were addressed in-band:
+
+- **Assisted-headline laundering (B).** The post-run headline now displays the unassisted (pre-refinement) aggregate; the assisted score appears beside it as `assisted recovery: ±X.X`.
+- **SFIA axis truncation (D).** The SFIA mapping in `[templates/swe/score.md](templates/swe/score.md)` now carries all five generic-attribute facets (autonomy, complexity, influence, knowledge, business skills), and the grader's per-band `reason` must consider all five.
+- **Distribution masking (E).** When the unassisted run has ≥2 questions scoring ≤2 at the primary band, the headline replaces the career-level keyword with `blocked by N critical failure(s)` so a polarized run cannot mask gaps.
+- **Cross-surface mapping contradiction (G).** Band-to-framework mapping is now a single YAML at `[templates/band_mappings.yaml](templates/band_mappings.yaml)`, consumed by `commands/bands.py` and stitched into `templates/swe/{score,grader}.md` via build-time substitution. Eliminates the prior off-by-one between `commands/bands.py` and `templates/swe/grader.md`.
+- **Mechanism oracle (I).** New `[templates/swe/invariants.md](templates/swe/invariants.md)` defines per-field mechanism floors per band; an answer that articulates fluently but fails the band's mechanism invariant is capped at score ≤ 3 by rule.
+
+The remaining six findings — reliability harness (A), rubric gameability (C), citation drift (F), threshold cliffs (H), target ambiguity (J), coverage drift (K) — are documented in `docs/falsifiability-roadmap.md` (local-only, not published) with verbatim falsification tests. Each entry pairs the claim with the experiment that would falsify "this is fine," so the next contributor doesn't have to re-derive the question.
 
 ## License
 
