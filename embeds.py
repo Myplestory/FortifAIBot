@@ -7,10 +7,12 @@ so the import path stays stable.
 from __future__ import annotations
 
 from content.quiz import (
+    question_breakdown_embed,
     question_embed,
     refinement_embed,
     run_complete_embeds,
     skip_embed,
+    transcript_embeds,
 )
 from content.session import session_rollup_embed
 from content.shared import (
@@ -29,8 +31,11 @@ from content.shared import (
     build,
     confirm_embed,
     error_embed,
+    finalize_footer,
     format_remaining,
     info_embed,
+    rebuild_files_for_embeds,
+    split_embeds_for_messages,
 )
 
 
@@ -50,11 +55,16 @@ __all__ = [
     "build",
     "confirm_embed",
     "error_embed",
+    "finalize_footer",
     "format_remaining",
     "info_embed",
+    "question_breakdown_embed",
     "question_embed",
+    "rebuild_files_for_embeds",
     "refinement_embed",
     "run_complete_embeds",
     "session_rollup_embed",
     "skip_embed",
+    "split_embeds_for_messages",
+    "transcript_embeds",
 ]

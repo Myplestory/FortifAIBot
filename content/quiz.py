@@ -22,7 +22,7 @@ def question_embed(
     idx: int,
     q: dict[str, Any],
     *,
-    timeout_seconds: int = 1800,
+    timeout_seconds: int = 600,
 ) -> tuple[discord.Embed, list[discord.File]]:
     """Question prompt. Topics + SFIA skills are deliberately hidden — they would
     leak hints. Field is shown for context. The countdown field is updated by
@@ -46,7 +46,7 @@ def refinement_embed(
     idx: int,
     text: str,
     *,
-    timeout_seconds: int = 1800,
+    timeout_seconds: int = 300,
 ) -> tuple[discord.Embed, list[discord.File]]:
     return build(
         title=f"Refinement · Q{idx}",
@@ -68,52 +68,115 @@ def skip_embed(idx: int) -> tuple[discord.Embed, list[discord.File]]:
     )
 
 
-def _band_matrix_block(grading: dict[str, Any]) -> str:
-    """ASCII matrix of post-refinement scores, one row per question, columns B1..B5."""
-    COL_Q, COL_F, COL_B = 4, 26, 4
-    width = COL_Q + COL_F + COL_B * 5
-    header = (
-        f"{'Q':<{COL_Q}}{'Field':<{COL_F}}"
-        f"{'B1':<{COL_B}}{'B2':<{COL_B}}{'B3':<{COL_B}}{'B4':<{COL_B}}{'B5':<{COL_B}}"
-    )
-    rows: list[str] = [header, "─" * width]
-    for qg in grading.get("questions_grading", []) or []:
-        qid = str(qg.get("question_id", "?"))
-        field_slug = (qg.get("field") or "?")[:COL_F - 1]
-        bands = qg.get("bands_post") or []
-        cells: list[str] = []
-        for band_record in bands[:5]:
-            s = band_record.get("score")
-            cells.append(str(int(s)) if isinstance(s, (int, float)) else "—")
-        while len(cells) < 5:
-            cells.append("—")
-        rows.append(
-            f"{qid:<{COL_Q}}{field_slug:<{COL_F}}"
-            f"{cells[0]:<{COL_B}}{cells[1]:<{COL_B}}{cells[2]:<{COL_B}}{cells[3]:<{COL_B}}{cells[4]:<{COL_B}}"
-        )
+def _format_band_pre_post(bands_pre: list[dict[str, Any]], bands_post: list[dict[str, Any]]) -> str:
+    pre_by_band = {b.get("band"): b.get("score") for b in (bands_pre or [])}
+    post_by_band = {b.get("band"): b.get("score") for b in (bands_post or [])}
+    rows = ["band   pre  post  Δ"]
+    for b in ("B1", "B2", "B3", "B4", "B5"):
+        pre = pre_by_band.get(b)
+        post = post_by_band.get(b)
+        pre_s = str(int(pre)) if isinstance(pre, (int, float)) else "—"
+        post_s = str(int(post)) if isinstance(post, (int, float)) else "—"
+        if isinstance(pre, (int, float)) and isinstance(post, (int, float)):
+            d = int(post) - int(pre)
+            delta = f"+{d}" if d > 0 else (str(d) if d < 0 else "·")
+        else:
+            delta = "—"
+        rows.append(f"{b:<5}  {pre_s:>3}   {post_s:>3}  {delta:>3}")
     return "```\n" + "\n".join(rows) + "\n```"
 
 
-def _per_field_diagnostic_lines(grading: dict[str, Any]) -> list[str]:
-    out: list[str] = []
-    for qg in grading.get("questions_grading", []) or []:
-        qid = qg.get("question_id", "?")
-        field_slug = qg.get("field", "?")
-        ceiling = qg.get("band_ceiling_post") or "—"
-        assessment = (qg.get("assessment") or "").strip()
-        first_sentence = assessment.split(". ")[0].rstrip(".") if assessment else "—"
-        out.append(f"**Q{qid}** `{field_slug}` · ceiling **{ceiling}** — {first_sentence}.")
-    return out
+def question_breakdown_embed(
+    qrec: dict[str, Any],
+    *,
+    idx: int,
+) -> tuple[discord.Embed, list[discord.File]]:
+    """Per-question breakdown: scenario, response, refinement, assessment,
+    band scores (pre→post), and literature. Used by both the run-complete
+    output and `/transcript`.
+    """
+    field_slug = qrec.get("field") or "?"
+    topics = qrec.get("topics") or []
+    ceiling = qrec.get("band_ceiling_post")
+    transitional = qrec.get("transitional_post")
 
+    title_parts = [f"Q{idx}", f"`{field_slug}`"]
+    if ceiling:
+        title_parts.append(f"ceiling **{ceiling}**")
+    title = " · ".join(title_parts)
 
-def _literature_block_lines(grading: dict[str, Any]) -> list[str]:
-    out: list[str] = []
-    for qg in grading.get("questions_grading", []) or []:
-        qid = qg.get("question_id", "?")
-        for entry in qg.get("literature", []) or []:
+    desc_lines: list[str] = []
+    if topics:
+        desc_lines.append("Topics: " + ", ".join(f"`{t}`" for t in topics))
+    if transitional:
+        desc_lines.append(f"_Transitional toward **{transitional}**_")
+    description = "\n".join(desc_lines)
+
+    fields_listed: list[tuple[str, str, bool]] = []
+
+    scenario = (qrec.get("question") or "").strip()
+    if scenario:
+        fields_listed.extend(_chunk_field("Scenario", scenario))
+
+    response = (qrec.get("response") or "").strip() or "_(no response)_"
+    fields_listed.extend(_chunk_field("Response", response))
+
+    refine_form = qrec.get("refine_form")
+    refine_text = (qrec.get("refine") or "").strip()
+    if refine_form == "skip":
+        fields_listed.append(("Refinement", "_(skipped — no probe)_", False))
+    elif refine_text:
+        fields_listed.extend(_chunk_field("Refinement", refine_text))
+        refine_response = (qrec.get("refine_response") or "").strip() or "_(no reply)_"
+        fields_listed.extend(_chunk_field("Refinement response", refine_response))
+
+    assessment = (qrec.get("assessment") or "").strip()
+    if assessment:
+        fields_listed.extend(_chunk_field("Assessment", assessment))
+
+    bands_pre = qrec.get("bands_pre") or []
+    bands_post = qrec.get("bands") or []
+    if bands_pre or bands_post:
+        fields_listed.append(("Scores", _format_band_pre_post(bands_pre, bands_post), False))
+
+    literature = qrec.get("literature") or []
+    if literature:
+        lit_lines: list[str] = []
+        for entry in literature:
             badge = "[growth]" if entry.get("type") == "growth" else "[remediation]"
-            out.append(f"**Q{qid}** · `{badge}` · {_format_lit_entry(entry)}")
-    return out
+            lit_lines.append(f"`{badge}` {_format_lit_entry(entry)}")
+        fields_listed.extend(_chunk_field("Literature", "\n".join(lit_lines)))
+
+    return build(
+        title=title,
+        description=description,
+        fields=fields_listed,
+        icon=ICON_NAMES["grading"],
+        color=BLUE_PRIMARY,
+        footer=None,
+    )
+
+
+def _per_question_embeds_from_questions(
+    questions: list[dict[str, Any]],
+) -> tuple[list[discord.Embed], list[discord.File]]:
+    """Iterate the persisted `questions` array (each entry shaped
+    `{"question_N": qrec}`) and emit one embed per question."""
+    out_embeds: list[discord.Embed] = []
+    out_files: list[discord.File] = []
+    for idx, wrap in enumerate(questions or [], start=1):
+        if not isinstance(wrap, dict):
+            continue
+        qrec = wrap.get(f"question_{idx}")
+        if not isinstance(qrec, dict):
+            # Be tolerant: pick the first dict value if the key shape differs.
+            qrec = next((v for v in wrap.values() if isinstance(v, dict)), None)
+        if not qrec:
+            continue
+        e, f = question_breakdown_embed(qrec, idx=idx)
+        out_embeds.append(e)
+        out_files.extend(f)
+    return out_embeds, out_files
 
 
 def run_complete_embeds(
@@ -236,56 +299,101 @@ def run_complete_embeds(
     all_files.extend(summary_files)
 
     if success:
-        # ---- 2. Matrix embed --------------------------------------------
-        matrix_fields: list[tuple[str, str, bool]] = []
-        matrix_fields.append((
-            "Band matrix · post-refinement",
-            _band_matrix_block(grading),
-            False,
-        ))
-        diag_lines = _per_field_diagnostic_lines(grading)
-        if diag_lines:
-            matrix_fields.extend(_chunk_field("Per-question diagnostic", "\n".join(diag_lines)))
-
-        matrix_embed, matrix_files = build(
-            title="Run complete · matrix",
-            description="Each question scored independently across all five bands. "
-                        "The diagnostic line names the gap, not the answer.",
-            fields=matrix_fields,
-            icon=ICON_NAMES["stats"],
-            color=BLUE_PRIMARY,
-            footer=None,
+        # ---- 2..N. Per-question breakdown embeds ------------------------
+        q_embeds, q_files = _per_question_embeds_from_questions(
+            (graded_run or {}).get("questions") or []
         )
-        all_embeds.append(matrix_embed)
-        all_files.extend(matrix_files)
+        all_embeds.extend(q_embeds)
+        all_files.extend(q_files)
 
-        # ---- 3. Literature + exercises embed ----------------------------
-        lit_fields: list[tuple[str, str, bool]] = []
-        lit_lines = _literature_block_lines(grading)
-        if lit_lines:
-            lit_fields.extend(_chunk_field("Literature · 2 per question", "\n".join(lit_lines)))
+        # ---- N+1. Practical exercises (only when grading succeeded; the
+        # no-grading branch folds them into the summary above). --------------
         if exercises:
             ex_lines = "\n".join(
                 f"• **{e.get('name')}** — `{e.get('source')}` — {e.get('concept_mapping')}"
                 for e in exercises
             )
-            lit_fields.append(("Practical exercises", ex_lines, False))
-
-        if lit_fields:
-            lit_embed, lit_files = build(
-                title="Run complete · literature",
-                description="Per-question literature scoped to your band. "
-                            "Reading list deduped at `/sessionend`.",
-                fields=lit_fields,
-                icon=ICON_NAMES["literature"],
+            ex_embed, ex_files = build(
+                title="Practical exercises",
+                description="Hands-on follow-ups linked to the question topics.",
+                fields=[("Exercises", ex_lines, False)],
+                icon=ICON_NAMES["exercises"],
                 color=BLUE_PRIMARY,
                 footer=None,
             )
-            all_embeds.append(lit_embed)
-            all_files.extend(lit_files)
+            all_embeds.append(ex_embed)
+            all_files.extend(ex_files)
 
     # Footer only on the last embed for visual termination.
     if all_embeds:
         all_embeds[-1].set_footer(text=DEFAULT_FOOTER)
 
     return all_embeds, all_files
+
+
+def transcript_embeds(
+    run: dict[str, Any],
+    *,
+    session_name: str,
+    session_id: str,
+) -> tuple[list[discord.Embed], list[discord.File]]:
+    """Render a persisted run record (post-grading) as the same summary +
+    per-question embeds the quiz emits at run-complete. Used by `/transcript`.
+
+    The run record is treated as the authoritative source — `apply_grading`
+    has already merged `run_aggregation`, `session_summary`, and per-question
+    grading data onto it. We synthesize the `grading` shape `run_complete_embeds`
+    expects so a single render path serves both flows.
+    """
+    has_grading = run.get("aggregated_score") is not None
+    grading: dict[str, Any] | None = None
+    if has_grading:
+        grading = {
+            "run_aggregation": {
+                "aggregated_score": run.get("aggregated_score"),
+                "career_level": run.get("career_level", ""),
+                "strengths": run.get("strengths") or {"fields": [], "topics": []},
+                "weaknesses": run.get("weaknesses") or {"fields": [], "topics": []},
+            },
+            "session_summary": run.get("session_summary") or {},
+            # questions_grading is no longer consumed by run_complete_embeds —
+            # per-question embeds read directly from graded_run.questions.
+            "questions_grading": [],
+        }
+
+    # Derive fields/topics covered from the questions array (authoritative)
+    # rather than the legacy fields_invoked/topics_invoked, which can lag.
+    fields_covered: list[str] = []
+    topics_covered: list[str] = []
+    seen_f: set[str] = set()
+    seen_t: set[str] = set()
+    for wrap in run.get("questions") or []:
+        if not isinstance(wrap, dict):
+            continue
+        for _, qrec in wrap.items():
+            if not isinstance(qrec, dict):
+                continue
+            f = qrec.get("field")
+            if isinstance(f, str) and f and f not in seen_f:
+                seen_f.add(f)
+                fields_covered.append(f)
+            for t in qrec.get("topics") or []:
+                if isinstance(t, str) and t not in seen_t:
+                    seen_t.add(t)
+                    topics_covered.append(t)
+
+    return run_complete_embeds(
+        run_id=str(run.get("id", "?")),
+        session_id=session_id,
+        durations=run.get("duration") or "—",
+        exercises=run.get("practical_exercises") or [],
+        industry=run.get("industry") or "—",
+        band=run.get("band") or "—",
+        session_name=session_name,
+        domain=run.get("domain") or None,
+        stack=run.get("stack") or None,
+        fields_covered=fields_covered,
+        topics_covered=topics_covered,
+        grading=grading,
+        graded_run=run if has_grading else None,
+    )

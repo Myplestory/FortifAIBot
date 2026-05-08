@@ -10,12 +10,7 @@ import generate
 import parse
 
 from commands.confirm import ask_confirm
-
-
-def _split_csv(s: str | None) -> list[str]:
-    if not s:
-        return []
-    return [tok.strip() for tok in s.split(",") if tok.strip()]
+from util import split_csv
 
 
 BAND_CHOICES = [
@@ -111,7 +106,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 )
                 await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
                 return
-        fields_list = _split_csv(fields)
+        fields_list = split_csv(fields)
         bad_fields = [f for f in fields_list if f not in parse.CANONICAL_FIELDS]
         if bad_fields:
             valid_str = ", ".join(f"`{k}`" for k in parse.CANONICAL_FIELDS.keys())
@@ -121,8 +116,8 @@ def register(tree: app_commands.CommandTree) -> None:
             )
             await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
             return
-        topics_list = _split_csv(topics)
-        stack_list = _split_csv(stack)
+        topics_list = split_csv(topics)
+        stack_list = split_csv(stack)
         domain_value = (domain or "").strip() or None
         quiz_defaults = parse._clean_quiz_defaults({
             "industry": industry_value,

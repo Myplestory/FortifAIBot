@@ -4,9 +4,10 @@ import json
 import logging
 import os
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from util import humanize_duration, now_iso
 
 log = logging.getLogger(__name__)
 
@@ -83,22 +84,6 @@ def _read_json(path: Path) -> Any:
         return None
     with open(path) as f:
         return json.load(f)
-
-
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def humanize_duration(start: str, end: str) -> str:
-    a = datetime.fromisoformat(start)
-    b = datetime.fromisoformat(end)
-    seconds = int((b - a).total_seconds())
-    if seconds < 60:
-        return f"{seconds}s"
-    if seconds < 3600:
-        return f"{seconds // 60}m {seconds % 60}s"
-    h, rem = divmod(seconds, 3600)
-    return f"{h}h {rem // 60}m"
 
 
 def _read_active() -> dict[str, dict[str, Any]]:

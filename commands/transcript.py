@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import io
-
 import discord
 from discord import app_commands
 
@@ -10,7 +8,7 @@ import parse
 
 
 def register(tree: app_commands.CommandTree) -> None:
-    @tree.command(name="transcript", description="Fetch the grading transcript (markdown) for a run in the current session.")
+    @tree.command(name="transcript", description="Fetch the grading transcript (summary + per-question breakdown) for a run in the current session.")
     @app_commands.describe(run="Run id within the current session. Omit for the latest run.")
     async def transcript(interaction: discord.Interaction, run: int | None = None):
         user_id = str(interaction.user.id)
@@ -47,23 +45,22 @@ def register(tree: app_commands.CommandTree) -> None:
                 return
 
         run_id = str(target.get("id", "?"))
-        md = (target.get("report_markdown") or "").strip()
-        if not md:
+        if target.get("aggregated_score") is None:
             embed, files = embeds.error_embed(
-                f"Run `#{run_id}` has no grading transcript yet — try `/sweep regrade`.",
+                f"Run `#{run_id}` has no grading yet — try `/sweep mode:regrade`.",
                 icon=embeds.ICON_NAMES["error"],
             )
             await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
             return
 
-        buf = io.BytesIO(md.encode("utf-8"))
-        filename = f"transcript-{active.get('id', 'session')}-run{run_id}.md"
-        transcript_file = discord.File(buf, filename=filename)
-
-        embed, files = embeds.build(
-            title="Grading transcript",
-            description=f"Session **`{session_name}`** · run `#{run_id}` · attached as `{filename}`.",
-            icon=embeds.ICON_NAMES["grading"],
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        all_embeds, _ = embeds.transcript_embeds(
+            target,
+            session_name=session_name,
+            session_id=str(active.get("id", "?")),
         )
-        files.append(transcript_file)
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        groups = embeds.split_embeds_for_messages(all_embeds)
+        embeds.finalize_footer(groups)
+        for group in groups:
+            files = embeds.rebuild_files_for_embeds(group)
+            await interaction.followup.send(embeds=group, files=files, ephemeral=True)

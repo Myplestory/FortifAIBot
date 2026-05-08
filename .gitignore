@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# gitignore
+.gitignore
+
 # Cryptographic material. If you have a legitimate tracked PEM (e.g. a
 # public test fixture), commit it via `git add -f path/to/file.pem`.
 *.pem
