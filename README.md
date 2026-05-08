@@ -33,7 +33,7 @@ Surface coverage, growth deltas, and field-rotation bias as embeds with inline m
 - ### **Transcript.** `/transcript`
 Dumps the full Q&A, grading, and literature for any past run.
 - ### **Reminders & sweep.** `/schedule add`, `/schedule list`, `/schedule remove`, `/sweep`
-Recurring DM nudges via APScheduler (sqlite-backed) managed through `/schedule add|list|remove`. `/sweep` reclaims abandoned runs, regrades failures, and heals the meta.json catalog from run history (modes: `cleanup`, `regrade`, `regrade-last`, `catalog`, `all`). `regrade-last` force-regrades the most recent run regardless of prior grading state — use after prompt or template changes to re-score with the new rules.
+Recurring DM nudges via APScheduler (sqlite-backed) managed through `/schedule add|list|remove`. `/sweep` reclaims abandoned runs, regrades failures, and heals the meta.json catalog from run history (modes: `cleanup`, `regrade`, `regrade-last`, `catalog`, `all`). `regrade-last` force-regrades the most recent run regardless of prior grading state and chains into a catalog heal — use after prompt or template changes to re-score with the new rules and refresh meta.json in one shot.
 - ### **8 SWE fields out of the box.** `templates/swe/` 
 Ships graded against Dreyfus + SWECOM + SFIA; drop a `templates/<industry>/` directory to add a domain.
 

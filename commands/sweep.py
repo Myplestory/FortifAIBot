@@ -112,8 +112,27 @@ def register(tree: app_commands.CommandTree) -> None:
                 else:
                     ok, err = await _regrade_one(user_id, session_id, latest, active_after)
                     if ok:
+                        # Chain into catalog: deterministic meta.json heal from
+                        # full run history. The grader's `meta_updates` is
+                        # LLM-judged and can be empty even after a successful
+                        # regrade; heal_meta_from_user_runs guarantees the
+                        # field/topic catalog reflects every persisted run.
+                        cat = await asyncio.to_thread(parse.heal_meta_from_user_runs, user_id)
+                        runs_n = cat["runs_processed"]
+                        fields_added = cat["fields_added"]
+                        topics_added = cat["topics_added_total"]
+                        if not fields_added and topics_added == 0:
+                            cat_line = f" Catalog walked **{runs_n}** run(s); meta.json already in sync."
+                        else:
+                            parts = [f" Catalog walked **{runs_n}** run(s)."]
+                            if fields_added:
+                                parts.append(f"Added field(s): {', '.join(f'`{f}`' for f in fields_added)}.")
+                            if topics_added:
+                                parts.append(f"Added **{topics_added}** new topic(s).")
+                            cat_line = " ".join(parts)
                         force_regrade_body = (
                             f"✅ Re-graded run `#{latest_id}` (forced; previous grading state ignored)."
+                            f"\n{cat_line}"
                         )
                     else:
                         force_regrade_body = f"⚠️ Re-grade failed for run `#{latest_id}` — {err}"
