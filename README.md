@@ -9,7 +9,7 @@
 
 A protocol for band-calibrated technical knowledge recall hardening. Question generation, refinement, and grading anchored to cited competence frameworks (Dreyfus) and SWE industry standards (IEEE SWECOM, SFIA). What gets tested and how it's scored come from published criteria, not the LLM's judgment.
 
-FortifAI is a Discord bot calibrated to software engineering rooted in real world industry practice, however the pipeline (`[phases/](phases/)`) is platform and industry agnostic and contains zero Discord coupling; both surfaces can be swapped without touching the LLM contract.
+FortifAI is a Discord bot calibrated to software engineering rooted in real world industry practice, however the pipeline ([`phases/`](phases/)) is platform and industry agnostic and contains zero Discord coupling; both surfaces can be swapped without touching the LLM contract.
 
 ## Thesis
 
@@ -20,8 +20,8 @@ As LLMs become indispensable in technical workflows, distinguishing genuine comp
 ## Applications
 
 - **As a software-engineering study companion.** Install, configure a Discord bot, run `/knowledgeharden`. Shipped `templates/swe/` covers 8 engineering fields graded against Dreyfus (cross-domain) plus SWECOM and SFIA (SWE-specific). Multi-session, multi-user, persistent reading list per session.
-- **Agnostic encoding.** Author `templates/<your-domain>/{score,generation,refine,grader}.md` and update `[parse.CANONICAL_FIELDS](parse.py)` to your domain's taxonomy: security, ML research, clinical informatics, regulatory compliance, anything with cited band criteria. The pipeline picks up the new industry on next run.
-- **As a phase pipeline you wrap.** `[phases/](phases/)` exposes pure functions implementing the LLM contract with strict JSON validation. Build a CLI, web app, or Slack/Teams equivalent against the [public surface](#public-surface); only `[commands/](commands/)` and `[main.py](main.py)` are Discord-specific.
+- **Agnostic encoding.** Author `templates/<your-domain>/{score,generation,refine,grader}.md` and update [`parse.CANONICAL_FIELDS`](parse.py) to your domain's taxonomy: security, ML research, clinical informatics, regulatory compliance, anything with cited band criteria. The pipeline picks up the new industry on next run.
+- **As a phase pipeline you wrap.** [`phases/`](phases/) exposes pure functions implementing the LLM contract with strict JSON validation. Build a CLI, web app, or Slack/Teams equivalent against the [public surface](#public-surface); only [`commands/`](commands/) and [`main.py`](main.py) are Discord-specific.
 
 > **NOT A CREDENTIALING REPLACEMENT.** This tool does not certify competence and does not substitute for accredited programs. It is a *support* layer, meant to help practitioners prepare for, identify gaps relative to, and meet criteria that certain industries and institutions actually adjudicate (SFIA-aligned employers, IEEE certifications, Dreyfus-informed mentorship). Outputs are diagnostic; treat them as a study companion, not a verdict.  
 >
@@ -74,7 +74,7 @@ After 5 questions and 5 refinement probes, the grader scores against all five ba
 
 Off-the-shelf LLMs will quiz you, but their questions drift in difficulty, bias toward fashionable topics, and grade against whatever rubric they invent in the moment. Three constraints anchor every call:
 
-1. **Citeable anchor.** Every system prompt is stitched in three layers: cross-domain Dreyfus skill stages from `[templates/dreyfus.md](templates/dreyfus.md)`, domain-specific seniority frameworks from `[templates/<industry>/score.md](templates/swe/score.md)` (SWECOM and SFIA for swe), then the procedural template (`generation.md` or `grader.md`). Both generator and grader see the same band ladder, so questions are calibrated against the rubric they'll later be scored on — and every band score's `reason` anchors back to verbatim text from a published, citeable source.
+1. **Citeable anchor.** Every system prompt is stitched in three layers: cross-domain Dreyfus skill stages from [`templates/dreyfus.md`](templates/dreyfus.md), domain-specific seniority frameworks from [`templates/<industry>/score.md`](templates/swe/score.md) (SWECOM and SFIA for swe), then the procedural template (`generation.md` or `grader.md`). Both generator and grader see the same band ladder, so questions are calibrated against the rubric they'll later be scored on — and every band score's `reason` anchors back to verbatim text from a published, citeable source.
 2. **Strict output contracts.** Every LLM call is parsed against a JSON schema and validated; failures retry once with the validator's error echoed back. Questions must cover exactly 5 fields; literature must be exactly 2 entries per question; the literature mix is deterministic in the post-refinement score.
 3. **Field-rotation weighting.** When fields aren't explicit, the generator weights toward fields with fewer recorded topics in `meta.json`, countering the LLM's bias toward systems-distributed / ml-engineering / ai-llm content.
 
@@ -286,10 +286,10 @@ On first run the app creates `data/` (active sessions, scheduler sqlite, meta.js
 | **Cross-domain skill stages**      | `templates/dreyfus.md`                                                  | Verbatim Dreyfus stage definitions. Domain-independent; stitched on top of every industry's score template.                             |
 | **Domain-specific frameworks**     | `templates/<industry>/score.md`                                         | Verbatim citations for the industry's seniority/competency frameworks (SWECOM + SFIA for `swe`). Stitched after `dreyfus.md`.           |
 | **Procedural rules**               | `templates/<industry>/{generation,grader,refine}.md`                    | The "how to" prompts. Procedure-only; band citations come from `dreyfus.md` + `score.md`.                                               |
-| **Band-tuning hints (Phase 0)**    | `[phases/generation.py](phases/generation.py)` `_BAND_GUIDANCE`         | Per-band one-liner that frames what difficulty tier the LLM should target when generating.                                              |
-| **Field rotation weighting**       | `[phases/generation.py](phases/generation.py)` `_select_fields_for_run` | Weights fields with fewer recorded topics higher; explicit user picks bypass the bias.                                                  |
-| **Literature mix rule**            | `[phases/grading.py](phases/grading.py)` `_validate_question_grading`   | Score 5 → 2 growth; 4 → 1 growth + 1 remediation; 1-3 → 2 remediation. Enforced at validation time.                                     |
-| **Canonical fields**               | `[parse.py](parse.py)` `CANONICAL_FIELDS`                               | The 8 engineering fields + their SFIA skill mappings. Edit to change the field taxonomy.                                                |
+| **Band-tuning hints (Phase 0)**    | [`phases/generation.py`](phases/generation.py) `_BAND_GUIDANCE`         | Per-band one-liner that frames what difficulty tier the LLM should target when generating.                                              |
+| **Field rotation weighting**       | [`phases/generation.py`](phases/generation.py) `_select_fields_for_run` | Weights fields with fewer recorded topics higher; explicit user picks bypass the bias.                                                  |
+| **Literature mix rule**            | [`phases/grading.py`](phases/grading.py) `_validate_question_grading`   | Score 5 → 2 growth; 4 → 1 growth + 1 remediation; 1-3 → 2 remediation. Enforced at validation time.                                     |
+| **Canonical fields**               | [`parse.py`](parse.py) `CANONICAL_FIELDS`                               | The 8 engineering fields + their SFIA skill mappings. Edit to change the field taxonomy.                                                |
 | **Discord guild for instant sync** | `DEV_GUILD_ID` env var                                                  | Without this, slash-command schema changes propagate via Discord's global tree (~1 hour).                                               |
 
 
@@ -358,10 +358,10 @@ Pre-1.0. Single-author project, source-released as a reference implementation. D
 The grading thesis (separating genuine competency from LLM-augmented fluency) is only defensible if the prep signal is empirically falsifiable. A May 2026 self-audit identified eleven ways FortifAI could mislead a studier; five were addressed in-band:
 
 - **Assisted-headline laundering (B).** The post-run headline now displays the unassisted (pre-refinement) aggregate; the assisted score appears beside it as `assisted recovery: ±X.X`.
-- **SFIA axis truncation (D).** The SFIA mapping in `[templates/swe/score.md](templates/swe/score.md)` now carries all five generic-attribute facets (autonomy, complexity, influence, knowledge, business skills), and the grader's per-band `reason` must consider all five.
+- **SFIA axis truncation (D).** The SFIA mapping in [`templates/swe/score.md`](templates/swe/score.md) now carries all five generic-attribute facets (autonomy, complexity, influence, knowledge, business skills), and the grader's per-band `reason` must consider all five.
 - **Distribution masking (E).** When the unassisted run has ≥2 questions scoring ≤2 at the primary band, the headline replaces the career-level keyword with `blocked by N critical failure(s)` so a polarized run cannot mask gaps.
-- **Cross-surface mapping contradiction (G).** Band-to-framework mapping is now a single YAML at `[templates/band_mappings.yaml](templates/band_mappings.yaml)`, consumed by `commands/bands.py` and stitched into `templates/swe/{score,grader}.md` via build-time substitution. Eliminates the prior off-by-one between `commands/bands.py` and `templates/swe/grader.md`.
-- **Mechanism oracle (I).** New `[templates/swe/invariants.md](templates/swe/invariants.md)` defines per-field mechanism floors per band; an answer that articulates fluently but fails the band's mechanism invariant is capped at score ≤ 3 by rule.
+- **Cross-surface mapping contradiction (G).** Band-to-framework mapping is now a single YAML at [`templates/band_mappings.yaml`](templates/band_mappings.yaml), consumed by `commands/bands.py` and stitched into `templates/swe/{score,grader}.md` via build-time substitution. Eliminates the prior off-by-one between `commands/bands.py` and `templates/swe/grader.md`.
+- **Mechanism oracle (I).** New [`templates/swe/invariants.md`](templates/swe/invariants.md) defines per-field mechanism floors per band; an answer that articulates fluently but fails the band's mechanism invariant is capped at score ≤ 3 by rule.
 
 The remaining six findings — reliability harness (A), rubric gameability (C), citation drift (F), threshold cliffs (H), target ambiguity (J), coverage drift (K) — are documented in `docs/falsifiability-roadmap.md` (local-only, not published) with verbatim falsification tests. Each entry pairs the claim with the experiment that would falsify "this is fine," so the next contributor doesn't have to re-derive the question.
 
