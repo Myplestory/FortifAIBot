@@ -116,7 +116,9 @@ Bad: "The answer was missing X. The correct answer is Y because Z."
 
 # Redaction Invariant (Output Safety)
 
-The `report_markdown` is for public display. Redact any self-identifying information in quoted answers/refinement_responses by replacing proprietary terms with bracketed generics: `[the user's project]`, `[internal system]`, `[proprietary tool]`. Preserve all technical content and reasoning structure. When uncertain, redact.
+For each question emit `response_redacted` and `refine_response_redacted`: the verbatim `response` and `refine_response` from `current_run`, with all self-identifying information removed by replacing proprietary terms with bracketed generics: `[the user's project]`, `[internal system]`, `[proprietary tool]`. Preserve all technical content and reasoning structure. When uncertain, redact. The application stitches these into the public-facing report; never include unredacted text in any field.
+
+If the source field is empty/whitespace-only or `refine.form === "skip"`, emit `""` (empty string) for the corresponding redacted field.
 
 # Run-Level Aggregation
 
@@ -218,6 +220,8 @@ Respond with a single JSON object. No markdown fences around the outer object, n
       "band_ceiling_post": "<B1..B5 or null>",
       "transitional_post": "<B1..B5 or null>",
       "assessment": "<2–4 sentences per the Assessment Invariant>",
+      "response_redacted": "<verbatim response with proprietary terms bracketed per Redaction Invariant; empty string if unattempted>",
+      "refine_response_redacted": "<verbatim refine_response with proprietary terms bracketed; empty string if skipped/unattempted>",
       "literature": [ {LiteratureEntry}, ... ]
     }
     // 5 total
@@ -250,8 +254,7 @@ Respond with a single JSON object. No markdown fences around the outer object, n
     "topics_added": {
       "<field-slug>": ["<new-topic-slug>", "..."]
     }
-  },
-  "report_markdown": "<full markdown report — see structure below>"
+  }
 }
 
 Where `Band` is:
@@ -265,105 +268,6 @@ Where `Band` is:
   "career_year": "<integer as string, or 'n/a'>"
 }
 
-# Output Document Structure (for `report_markdown`)
-
-Use this markdown structure with all placeholders filled. Apply the Redaction Invariant to every quoted answer/refinement_response.
-
-# Spot Check Report
-
-**Date:** <session_date>
-**Field(s):** <comma-separated field slugs from current_run>
-**Questions:** 5
-**Grading Methodology:** Dreyfus (1980/2021), IEEE SWECOM (2014), SFIA v9 (2024)
-
----
-
-## Question N
-
-**Topics tested:** <topics>
-**Field:** <field>
-
-### Scenario
-<scenario verbatim>
-
-### Response
-<answer, redacted>
-
-### Refinement
-**Question:** "<refine verbatim>"
-**Response:** <refine_response, redacted>
-
-### Assessment
-<assessment text>
-
-### Scores
-
-**Primary evaluation band:** <answerer_band>
-
-| Band | Pre-Refinement | Post-Refinement | Delta | Justification |
-|---|---|---|---|---|
-| B1 Foundational | <X> | <Y> | <±Z> | <reason> |
-| B2 Developing   | <X> | <Y> | <±Z> | <reason> |
-| B3 Competent    | <X> | <Y> | <±Z> | <reason> |
-| B4 Proficient   | <X> | <Y> | <±Z> | <reason> |
-| B5 Expert       | <X> | <Y> | <±Z> | <reason> |
-
-### Literature
-<entries per Phase 4 rules>
-
----
-
-<repeat for each of 5 questions>
-
----
-
-## Aggregate
-
-### Scores
-
-| Question | Topic | Field | B1 | B2 | B3 | B4 | B5 |
-|---|---|---|---|---|---|---|---|
-<rows>
-
-### Within-Session Movement (`-1`)
-
-<for each field with a -1 delta>: <field>: <career_level_before> → <career_level_after> (<direction><delta>). <level_change_reason>
-
-### Field Estimates
-
-| Field | Questions | Band Ceiling | YOE Equivalent | Confidence |
-|---|---|---|---|---|
-<rows>
-
-### Aggregate Estimate
-
-| Indicator | Value |
-|---|---|
-| Aggregate score (unassisted, pre-refinement) | <aggregated_score_pre> |
-| Aggregate score (post-refinement) | <aggregated_score_post> |
-| Assisted recovery (Δ) | <assisted_delta> |
-| Critical failures (unassisted) | <fail_count_pre> of 5 |
-| Critical failures (post-refinement) | <fail_count_post> of 5 |
-| Career level (from unassisted) | <career_level> |
-| Median band ceiling | <...> |
-| Range | <B?–B?> |
-| Aggregate Dreyfus stage | <...> |
-| Aggregate SWECOM level | <...> |
-| Aggregate SFIA level | <...> |
-| Aggregate YOE | <...> |
-| Confidence | <...> |
-
-### Strengths and Weaknesses
-
-**Strengths:** fields = <...>; topics = <...>
-**Weaknesses:** fields = <...>; topics = <...>
-
-### Remediation Reading
-<deduplicated `type: "remediation"` entries from per-question sections; group by band-scope depth (B1 first, B4 last)>
-
-### Growth Reading
-<deduplicated `type: "growth"` entries from per-question sections; each shows the connection statement>
-
-<end of report_markdown>
+The public-facing markdown report is rendered deterministically at the application level from this JSON plus `current_run`; you do not emit markdown. Your only obligations toward the report are (1) the per-question redacted text fields above, and (2) the per-band `reason` strings (which the renderer quotes as justifications).
 
 Output JSON only.

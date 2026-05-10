@@ -9,6 +9,7 @@ import llm
 import parse
 
 from phases import band_data
+from phases.grading_report import render_report
 from phases.shared import (
     DEFAULT_INDUSTRY,
     SCORE_GRADER_SEPARATOR,
@@ -91,9 +92,24 @@ def _validate_literature_entry(entry: dict[str, Any], where: str) -> None:
 def _validate_question_grading(qg: dict[str, Any], expected_id: int, answerer_band: str) -> None:
     if qg.get("question_id") != expected_id:
         raise GradingError(f"questions_grading[{expected_id - 1}] question_id mismatch")
-    for key in ("field", "topics", "bands_pre", "bands_post", "band_ceiling_post", "assessment", "literature"):
+    for key in (
+        "field",
+        "topics",
+        "bands_pre",
+        "bands_post",
+        "band_ceiling_post",
+        "assessment",
+        "response_redacted",
+        "refine_response_redacted",
+        "literature",
+    ):
         if key not in qg:
             raise GradingError(f"questions_grading[{expected_id - 1}] missing key {key!r}")
+    for redacted_key in ("response_redacted", "refine_response_redacted"):
+        if not isinstance(qg[redacted_key], str):
+            raise GradingError(
+                f"questions_grading[{expected_id - 1}].{redacted_key} must be a string, got {type(qg[redacted_key]).__name__}"
+            )
     for tag in ("bands_pre", "bands_post"):
         if not isinstance(qg[tag], list) or len(qg[tag]) != 5:
             raise GradingError(f"questions_grading[{expected_id - 1}] {tag} must be 5 entries")
@@ -158,7 +174,6 @@ def _validate_grading(out: dict[str, Any], answerer_band: str) -> None:
         "field_delta",
         "topic_delta",
         "meta_updates",
-        "report_markdown",
     ):
         if key not in out:
             raise GradingError(f"grading output missing key {key!r}")
@@ -285,38 +300,74 @@ def grade(
     )
     model = llm.get_model("generate")
 
+    # Two orthogonal recovery paths with independent budgets:
+    #   - Truncation: same prompt, just needs more headroom. One bump 24000 → 32000.
+    #   - Validation: same budget, needs a prompt-level correction. One reminder pass.
+    # Pooling them caused a regression where a truncation on attempt 1 left no slot to
+    # repair an arithmetic mismatch on attempt 2. Cap total iterations at 3 so a
+    # pathological loop can't run away.
     last_error: Exception | None = None
     max_tokens = 24000
-    for attempt in (1, 2):
+    truncation_bumps_left = 1
+    validation_retries_left = 1
+    for attempt in range(1, 4):
         try:
             raw = llm.call_llm(system=system_prompt, user=user, model=model, max_tokens=max_tokens)
             parsed = json.loads(_extract_first_json_object(raw))
             _validate_grading(parsed, answerer_band)
+            parsed["report_markdown"] = render_report(
+                grading=parsed,
+                current_run=current_run,
+                answerer_band=answerer_band,
+            )
             return parsed
         except llm.LLMTruncatedError as e:
             last_error = e
             log.warning("grading attempt %d truncated at max_tokens=%d: %s", attempt, max_tokens, e)
-            if attempt == 1:
-                # Same input, same prompt — only the budget changes. claude-opus-4-7's
-                # standard ceiling is 32000; if that still truncates, the schema/input
-                # is structurally too large and a token bump won't save us.
-                max_tokens = 32000
-            else:
+            if truncation_bumps_left <= 0:
                 raise GradingError(
                     f"grading output exceeded {max_tokens} tokens after retry; "
                     "consider trimming input (comparison_points/meta_json) or splitting the schema"
                 ) from e
+            truncation_bumps_left -= 1
+            # claude-opus-4-7's standard ceiling. If 32000 still truncates the schema/input
+            # is structurally too large and a further token bump won't save us.
+            max_tokens = 32000
         except (json.JSONDecodeError, GradingError) as e:
             last_error = e
             log.warning("grading attempt %d failed: %s", attempt, e)
-            if attempt == 1:
-                user = user + (
-                    f'\n\nPrevious attempt failed validation: "{e}". Regenerate per the schema. '
-                    "Literature mix is driven by the POST-REFINEMENT SCORE AT THE PRIMARY EVALUATION BAND: "
-                    "score 5 → 2 growth; score 4 → 1 growth + 1 remediation; score 1–3 → 2 remediation."
-                )
-            else:
+            if validation_retries_left <= 0:
                 break
+            validation_retries_left -= 1
+            user = user + _validation_retry_hint(e)
         except llm.LLMError as e:
             raise GradingError(f"LLM call failed: {e}") from e
     raise GradingError(f"grading failed after retry: {last_error}")
+
+
+def _validation_retry_hint(error: Exception) -> str:
+    """Append a tailored correction hint to the user prompt based on what the validator
+    flagged. The previous static reminder preached the literature-mix rule even when
+    the failure was arithmetic, which was noisy and unhelpful — match the hint to the
+    error so the model can self-diagnose instead of re-checking the wrong invariant.
+    """
+    msg = str(error)
+    msg_l = msg.lower()
+    base = f'\n\nPrevious attempt failed validation: "{msg}". Regenerate the same JSON correctly per the schema.'
+    if "disagrees with per-question recompute" in msg or "fail_count_" in msg:
+        return base + (
+            " fail_count_pre and fail_count_post must equal the count of questions whose "
+            "primary-band score is ≤ the failure threshold (recompute by walking bands_pre/"
+            "bands_post and selecting the entry whose `band` matches the primary evaluation band)."
+        )
+    if "literature" in msg_l:
+        return base + (
+            " Literature mix is driven by the POST-REFINEMENT SCORE AT THE PRIMARY EVALUATION BAND: "
+            "score 5 → 2 growth; score 4 → 1 growth + 1 remediation; score 1–3 → 2 remediation."
+        )
+    if "assisted_delta" in msg_l:
+        return base + (
+            " assisted_delta is the signed string of (aggregated_score_post − aggregated_score_pre) "
+            "rounded to 1 decimal, e.g. '+0.6', '-0.4', '0.0'."
+        )
+    return base
