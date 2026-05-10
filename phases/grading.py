@@ -156,6 +156,18 @@ def _validate_question_grading(qg: dict[str, Any], expected_id: int, answerer_ba
         )
 
 
+def _format_delta_string(x: float) -> str:
+    """Format a 1-decimal float as the signed string the schema requires:
+    '+0.6' / '-0.4' / '0.0' (no '+' on zero, no '-0.0').
+    """
+    rounded = round(x, 1)
+    if rounded == 0:
+        return "0.0"
+    if rounded > 0:
+        return f"+{rounded:.1f}"
+    return f"{rounded:.1f}"
+
+
 def _primary_score(qg: dict[str, Any], tag: str, answerer_band: str) -> int | None:
     for b in qg.get(tag) or []:
         if isinstance(b, dict) and b.get("band") == answerer_band:
@@ -209,17 +221,21 @@ def _validate_grading(out: dict[str, Any], answerer_band: str) -> None:
         v = agg[key]
         if not isinstance(v, int) or not (0 <= v <= 5):
             raise GradingError(f"run_aggregation.{key} must be an integer in [0, 5], got {v!r}")
-    # Self-consistency: recompute fail_count from the per-question primary band
-    # scores and reject mismatch. Catches model arithmetic drift.
+    # Self-consistency: recompute every primary-band aggregate from the per-question
+    # primary-band scores and reject mismatch. Catches model arithmetic drift — both
+    # the fail_count miscount we already saw, and the aggregated_score/assisted_delta
+    # drift the validator previously did not check (e.g. mean of [3,4,1,4,2]=2.8 emitted
+    # as 2.4 with no challenge).
+    pre_primary = [
+        s for q in qg if (s := _primary_score(q, "bands_pre", answerer_band)) is not None
+    ]
+    post_primary = [
+        s for q in qg if (s := _primary_score(q, "bands_post", answerer_band)) is not None
+    ]
+
     fail_threshold = band_data.critical_failure_config().fail_score_threshold
-    expected_pre = sum(
-        1 for q in qg
-        if (s := _primary_score(q, "bands_pre", answerer_band)) is not None and s <= fail_threshold
-    )
-    expected_post = sum(
-        1 for q in qg
-        if (s := _primary_score(q, "bands_post", answerer_band)) is not None and s <= fail_threshold
-    )
+    expected_pre = sum(1 for s in pre_primary if s <= fail_threshold)
+    expected_post = sum(1 for s in post_primary if s <= fail_threshold)
     if agg["fail_count_pre"] != expected_pre:
         raise GradingError(
             f"run_aggregation.fail_count_pre={agg['fail_count_pre']} disagrees with "
@@ -230,6 +246,41 @@ def _validate_grading(out: dict[str, Any], answerer_band: str) -> None:
             f"run_aggregation.fail_count_post={agg['fail_count_post']} disagrees with "
             f"per-question recompute={expected_post} at primary band {answerer_band}"
         )
+
+    # aggregated_score_pre/post: mean of per-question primary-band scores, rounded to
+    # 1 decimal. Compared as 1-decimal strings to dodge float-equality pitfalls.
+    # When the primary band is absent on every question (`pre_primary`/`post_primary`
+    # empty) we skip the recompute — the bands_pre/post 5-entry check would already
+    # have failed, so we'd never reach here in normal operation.
+    if pre_primary:
+        expected_pre_mean = round(sum(pre_primary) / len(pre_primary), 1)
+        if f"{float(agg['aggregated_score_pre']):.1f}" != f"{expected_pre_mean:.1f}":
+            raise GradingError(
+                f"run_aggregation.aggregated_score_pre={agg['aggregated_score_pre']} disagrees with "
+                f"per-question recompute={expected_pre_mean:.1f} at primary band {answerer_band}"
+            )
+    if post_primary:
+        expected_post_mean = round(sum(post_primary) / len(post_primary), 1)
+        if f"{float(agg['aggregated_score_post']):.1f}" != f"{expected_post_mean:.1f}":
+            raise GradingError(
+                f"run_aggregation.aggregated_score_post={agg['aggregated_score_post']} disagrees with "
+                f"per-question recompute={expected_post_mean:.1f} at primary band {answerer_band}"
+            )
+        # `aggregated_score` is documented as the alias of aggregated_score_post.
+        if f"{float(agg['aggregated_score']):.1f}" != f"{expected_post_mean:.1f}":
+            raise GradingError(
+                f"run_aggregation.aggregated_score={agg['aggregated_score']} must equal "
+                f"aggregated_score_post (alias); per-question recompute={expected_post_mean:.1f}"
+            )
+
+    # assisted_delta = signed 1-decimal string of (aggregated_score_post − aggregated_score_pre).
+    if pre_primary and post_primary:
+        expected_delta = _format_delta_string(expected_post_mean - expected_pre_mean)
+        if agg["assisted_delta"] != expected_delta:
+            raise GradingError(
+                f"run_aggregation.assisted_delta={agg['assisted_delta']!r} disagrees with "
+                f"recompute={expected_delta!r} (post {expected_post_mean:.1f} − pre {expected_pre_mean:.1f})"
+            )
     mu = out["meta_updates"]
     if not isinstance(mu, dict):
         raise GradingError("meta_updates must be an object")
@@ -354,11 +405,21 @@ def _validation_retry_hint(error: Exception) -> str:
     msg = str(error)
     msg_l = msg.lower()
     base = f'\n\nPrevious attempt failed validation: "{msg}". Regenerate the same JSON correctly per the schema.'
-    if "disagrees with per-question recompute" in msg or "fail_count_" in msg:
+    if (
+        "disagrees with per-question recompute" in msg
+        or "fail_count_" in msg
+        or "aggregated_score" in msg_l
+        or "must equal aggregated_score_post" in msg
+    ):
         return base + (
-            " fail_count_pre and fail_count_post must equal the count of questions whose "
-            "primary-band score is ≤ the failure threshold (recompute by walking bands_pre/"
-            "bands_post and selecting the entry whose `band` matches the primary evaluation band)."
+            " run_aggregation must reconcile against the per-question primary-band scores. "
+            "Walk bands_pre/bands_post and pick the entry whose `band` matches the primary "
+            "evaluation band; that score is the per-question contribution. "
+            "aggregated_score_pre and aggregated_score_post are the means across all 5 questions, "
+            "rounded to 1 decimal. fail_count_pre and fail_count_post are the count of those "
+            "primary-band scores ≤ the failure threshold (2). aggregated_score is the alias of "
+            "aggregated_score_post. assisted_delta is the signed 1-decimal string of "
+            "(aggregated_score_post − aggregated_score_pre)."
         )
     if "literature" in msg_l:
         return base + (

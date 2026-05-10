@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import json
 import re
 from pathlib import Path
 
@@ -54,38 +55,26 @@ def _strip_json_fences(text: str) -> str:
     return s
 
 
+_JSON_DECODER = json.JSONDecoder()
+
+
 def _extract_first_json_object(text: str) -> str:
     """Return the first balanced top-level JSON object found in `text`,
-    tolerant of leading markdown fences, prelude prose, and trailing
-    commentary that would otherwise break `json.loads`. Tracks string state
-    so braces inside string literals aren't counted.
+    tolerant of leading markdown fences, prelude prose, and trailing commentary
+    that would otherwise break `json.loads`. Uses the stdlib `JSONDecoder.raw_decode`
+    to delegate brace/string/escape tracking to the real JSON grammar — replaces a
+    hand-rolled state machine. We scan for `{` candidates and try `raw_decode` at
+    each; the first one that parses to a balanced object wins. A stray `{` inside
+    prose (e.g. "the result was something like {1, 2, 3}") raises JSONDecodeError
+    and the scan continues to the next candidate.
     """
     s = _strip_json_fences(text)
-    depth = 0
-    start = -1
-    in_string = False
-    escape = False
     for i, c in enumerate(s):
-        if escape:
-            escape = False
+        if c != "{":
             continue
-        if in_string:
-            if c == "\\":
-                escape = True
-            elif c == '"':
-                in_string = False
+        try:
+            _, end = _JSON_DECODER.raw_decode(s, i)
+        except json.JSONDecodeError:
             continue
-        if c == '"':
-            in_string = True
-            continue
-        if c == "{":
-            if depth == 0:
-                start = i
-            depth += 1
-        elif c == "}":
-            if depth == 0:
-                continue
-            depth -= 1
-            if depth == 0 and start >= 0:
-                return s[start : i + 1]
+        return s[i:end]
     raise ValueError("no balanced JSON object found in LLM output")
