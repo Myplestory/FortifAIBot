@@ -13,6 +13,22 @@ class LLMError(RuntimeError):
     pass
 
 
+class LLMTruncatedError(LLMError):
+    """Raised when the model stops because it hit the max_tokens cap.
+
+    Distinct from generic LLMError so callers that can recover (e.g. by retrying
+    with a larger budget) can catch this specifically; everyone else still sees
+    it as an LLMError.
+    """
+
+    def __init__(self, output_tokens: int | str, max_tokens: int) -> None:
+        self.output_tokens = output_tokens
+        self.max_tokens = max_tokens
+        super().__init__(
+            f"LLM output truncated at max_tokens={max_tokens} (output_tokens={output_tokens})"
+        )
+
+
 def get_model(kind: Literal["generate", "refine"]) -> str:
     if kind == "generate":
         return os.environ.get("MODEL_GENERATE", "claude-opus-4-7")
@@ -72,8 +88,11 @@ def call_llm(
     full = "".join(parts)
     in_tokens = getattr(final.usage, "input_tokens", "?") if final is not None else "?"
     out_tokens = getattr(final.usage, "output_tokens", "?") if final is not None else "?"
+    stop_reason = getattr(final, "stop_reason", None) if final is not None else None
     log.info(
-        "llm call (streamed) model=%s sys_tokens=%s out_tokens=%s",
-        model, in_tokens, out_tokens,
+        "llm call (streamed) model=%s sys_tokens=%s out_tokens=%s stop_reason=%s",
+        model, in_tokens, out_tokens, stop_reason,
     )
+    if stop_reason == "max_tokens":
+        raise LLMTruncatedError(out_tokens, max_tokens)
     return full

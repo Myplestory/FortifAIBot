@@ -286,12 +286,26 @@ def grade(
     model = llm.get_model("generate")
 
     last_error: Exception | None = None
+    max_tokens = 24000
     for attempt in (1, 2):
         try:
-            raw = llm.call_llm(system=system_prompt, user=user, model=model, max_tokens=24000)
+            raw = llm.call_llm(system=system_prompt, user=user, model=model, max_tokens=max_tokens)
             parsed = json.loads(_extract_first_json_object(raw))
             _validate_grading(parsed, answerer_band)
             return parsed
+        except llm.LLMTruncatedError as e:
+            last_error = e
+            log.warning("grading attempt %d truncated at max_tokens=%d: %s", attempt, max_tokens, e)
+            if attempt == 1:
+                # Same input, same prompt — only the budget changes. claude-opus-4-7's
+                # standard ceiling is 32000; if that still truncates, the schema/input
+                # is structurally too large and a token bump won't save us.
+                max_tokens = 32000
+            else:
+                raise GradingError(
+                    f"grading output exceeded {max_tokens} tokens after retry; "
+                    "consider trimming input (comparison_points/meta_json) or splitting the schema"
+                ) from e
         except (json.JSONDecodeError, GradingError) as e:
             last_error = e
             log.warning("grading attempt %d failed: %s", attempt, e)
