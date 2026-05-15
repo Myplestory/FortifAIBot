@@ -76,6 +76,8 @@ def register(tree: app_commands.CommandTree) -> None:
         domain: str | None = None,
         stack: str | None = None,
     ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         name = (name or "").strip()
         if not name:
@@ -83,14 +85,14 @@ def register(tree: app_commands.CommandTree) -> None:
                 "Session `name` is required and cannot be blank.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         if parse.find_active_session(user_id, name=name) is not None:
             embed, files = embeds.error_embed(
                 f"You already have an active session named `{name}`. Pick a different name or close the existing one with `/sessionend name:{name}`.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         band_value = (band.value if band else "B3")
 
@@ -104,7 +106,7 @@ def register(tree: app_commands.CommandTree) -> None:
                     f"Unknown industry `{industry_value}`. Valid: {valid_str}.",
                     icon=embeds.ICON_NAMES["error"],
                 )
-                await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+                await interaction.followup.send(embed=embed, files=files, ephemeral=True)
                 return
         fields_list = split_csv(fields)
         bad_fields = [f for f in fields_list if f not in parse.CANONICAL_FIELDS]
@@ -114,7 +116,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 f"Unknown fields: {', '.join(bad_fields)}. Valid fields: {valid_str}.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         topics_list = split_csv(topics)
         stack_list = split_csv(stack)
@@ -189,6 +191,8 @@ def register(tree: app_commands.CommandTree) -> None:
     @tree.command(name="sessionend", description="End an active session (current by default).")
     @app_commands.describe(name="Session name to close. Defaults to your current session.")
     async def sessionend(interaction: discord.Interaction, name: str | None = None):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         target = parse.find_active_session(user_id, name=name)
         if not target:
@@ -198,7 +202,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 else "No current session to end. Use `/sessionlist active` to see your sessions, or `/sessionswitch` to pick one."
             )
             embed, files = embeds.error_embed(msg, icon=embeds.ICON_NAMES["error"])
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         target_name = target.get("name", "default")
         confirmed = await ask_confirm(
@@ -236,11 +240,13 @@ def register(tree: app_commands.CommandTree) -> None:
     @tree.command(name="sessionswitch", description="Switch your current pointer to another active session.")
     @app_commands.describe(name="Name of the active session to make current.")
     async def sessionswitch(interaction: discord.Interaction, name: str):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         name = (name or "").strip()
         if not name:
             embed, files = embeds.error_embed("Session `name` is required.", icon=embeds.ICON_NAMES["error"])
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         target = parse.switch_session(user_id, name)
         if target is None:
@@ -250,14 +256,14 @@ def register(tree: app_commands.CommandTree) -> None:
                 f"No active session named `{name}`. Active: {valid}.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         embed, files = embeds.info_embed(
             "Switched session",
             f"Current is now **`{name}`** (id `{target['id']}`, band **{target.get('band_preference', '—')}**, {len(target.get('runs', []))} run(s)).",
             icon=embeds.ICON_NAMES["sessionswitch"],
         )
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        await interaction.followup.send(embed=embed, files=files, ephemeral=True)
 
     @sessionswitch.autocomplete("name")
     async def _sessionswitch_name_autocomplete(interaction: discord.Interaction, current: str):
@@ -283,6 +289,8 @@ def register(tree: app_commands.CommandTree) -> None:
 
     @sessionlist_group.command(name="active", description="List your active sessions.")
     async def sessionlist_active(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         actives = parse.list_active_sessions(user_id)
         current = parse.get_current_session_name(user_id)
@@ -292,7 +300,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 "Open one with `/sessionbegin name:<unique>`.",
                 icon=embeds.ICON_NAMES["sessionlist"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         fields_listed: list[tuple[str, str, bool]] = []
         for s in actives:
@@ -323,10 +331,12 @@ def register(tree: app_commands.CommandTree) -> None:
             fields=fields_listed,
             icon=embeds.ICON_NAMES["sessionlist"],
         )
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        await interaction.followup.send(embed=embed, files=files, ephemeral=True)
 
     @sessionlist_group.command(name="closed", description="List your closed sessions.")
     async def sessionlist_closed(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         closed_records = parse.list_completed_for_user(user_id)
         if not closed_records:
@@ -335,7 +345,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 "Closed sessions are archived to `sessions/` once `/sessionend` runs.",
                 icon=embeds.ICON_NAMES["sessionlist"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         fields_listed: list[tuple[str, str, bool]] = []
         for s in closed_records[-25:]:  # cap at 25 (Discord field max)
@@ -352,7 +362,7 @@ def register(tree: app_commands.CommandTree) -> None:
             fields=fields_listed,
             icon=embeds.ICON_NAMES["sessionlist"],
         )
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        await interaction.followup.send(embed=embed, files=files, ephemeral=True)
 
     tree.add_command(sessionlist_group)
 
@@ -362,17 +372,19 @@ def register(tree: app_commands.CommandTree) -> None:
         name="Active name to restore under (must be unique among your active sessions).",
     )
     async def sessionrestore(interaction: discord.Interaction, id: str, name: str):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         name = (name or "").strip()
         if not name:
             embed, files = embeds.error_embed("`name` is required.", icon=embeds.ICON_NAMES["error"])
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         try:
             rec = parse.restore_session(user_id, id, name)
         except ValueError as e:
             embed, files = embeds.error_embed(str(e), icon=embeds.ICON_NAMES["error"])
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         embed, files = embeds.info_embed(
             "Session restored",
@@ -382,7 +394,7 @@ def register(tree: app_commands.CommandTree) -> None:
             ),
             icon=embeds.ICON_NAMES["sessionswitch"],
         )
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        await interaction.followup.send(embed=embed, files=files, ephemeral=True)
 
     @sessionrestore.autocomplete("id")
     async def _sessionrestore_id_autocomplete(interaction: discord.Interaction, current: str):

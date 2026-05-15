@@ -378,6 +378,8 @@ def register(tree: app_commands.CommandTree, bot: discord.Client) -> None:
         domain: str | None = None,
         stack: str | None = None,
     ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         session = parse.find_active_session(user_id)
         if not session:
@@ -385,7 +387,7 @@ def register(tree: app_commands.CommandTree, bot: discord.Client) -> None:
                 "No current session. Open one with `/sessionbegin name:<unique>` or `/sessionswitch name:<existing>`.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         session_defaults = session.get("quiz_defaults") or {}
@@ -398,7 +400,7 @@ def register(tree: app_commands.CommandTree, bot: discord.Client) -> None:
                 f"Unknown industry `{industry_value}`. Valid: {valid}.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         fields_list = util.split_csv(fields) or list(session_defaults.get("fields") or [])
@@ -409,16 +411,15 @@ def register(tree: app_commands.CommandTree, bot: discord.Client) -> None:
         error = _validate_args_against_meta(fields_list, topics_list, meta)
         if error:
             embed, files = embeds.error_embed(error, icon=embeds.ICON_NAMES["error"])
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         channel = interaction.channel
         if channel is None or not hasattr(channel, "create_thread"):
             embed, files = embeds.error_embed("This command must be run in a text channel.", icon=embeds.ICON_NAMES["error"])
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
-        await interaction.response.defer(ephemeral=True, thinking=True)
         session_label = session.get("name") or session["id"]
         thread = await channel.create_thread(
             name=f"Knowledge Harden — {interaction.user.display_name} — session {session_label}",

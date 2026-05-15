@@ -19,6 +19,7 @@ def register(tree: app_commands.CommandTree) -> None:
         industry: str | None = None,
         field: str | None = None,
     ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
         industries = generate.list_industries()
         meta = parse.read_meta()
         fields_dict = meta.get("fields", {})
@@ -30,14 +31,14 @@ def register(tree: app_commands.CommandTree) -> None:
                     "`field` requires an `industry` argument.",
                     icon=embeds.ICON_NAMES["directory"],
                 )
-                await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+                await interaction.followup.send(embed=embed, files=files, ephemeral=True)
                 return
             if not industries:
                 embed, files = embeds.error_embed(
                     "No industries found under `templates/`.",
                     icon=embeds.ICON_NAMES["directory"],
                 )
-                await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+                await interaction.followup.send(embed=embed, files=files, ephemeral=True)
                 return
             rows: list[tuple[str, str, bool]] = []
             for ind in industries:
@@ -50,7 +51,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 fields=rows,
                 icon=embeds.ICON_NAMES["directory"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         # Validate industry.
@@ -60,7 +61,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 f"Unknown industry `{industry}`. Valid: {valid}.",
                 icon=embeds.ICON_NAMES["directory"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         # `industry` only → list fields under that industry (topic counts come from the shared meta.json).
@@ -75,7 +76,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 fields=rows,
                 icon=embeds.ICON_NAMES["directory"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         # `industry` + `field` → list topics under that field.
@@ -85,7 +86,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 f"Unknown field `{field}`. Valid: {valid}.",
                 icon=embeds.ICON_NAMES["directory"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         topics = fields_dict.get(field, {}).get("topics", []) or []
         body = "\n".join(f"• `{t}`" for t in topics) if topics else "_No topics yet — they grow as questions are generated._"
@@ -95,7 +96,7 @@ def register(tree: app_commands.CommandTree) -> None:
             fields=[("Topics", body, False)],
             icon=embeds.ICON_NAMES["directory"],
         )
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        await interaction.followup.send(embed=embed, files=files, ephemeral=True)
 
     @directory.autocomplete("industry")
     async def _directory_industry_autocomplete(interaction: discord.Interaction, current: str):

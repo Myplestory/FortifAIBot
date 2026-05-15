@@ -55,10 +55,11 @@ def register(tree: app_commands.CommandTree) -> None:
 
     @schedule_group.command(name="list", description="List your active schedules.")
     async def schedule_list(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
         rows = scheduler.list_for_user(interaction.user.id)
         if not rows:
             embed, files = embeds.info_embed("No schedules", "Use `/schedule add` to create one.", icon=embeds.ICON_NAMES["schedule"])
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         fields_listed: list[tuple[str, str, bool]] = []
         for r in rows:
@@ -69,7 +70,7 @@ def register(tree: app_commands.CommandTree) -> None:
             fields=fields_listed,
             icon=embeds.ICON_NAMES["schedule"],
         )
-        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+        await interaction.followup.send(embed=embed, files=files, ephemeral=True)
 
     @schedule_group.command(name="remove", description="Remove a schedule by id.")
     @app_commands.describe(id="Job id from /schedule list.")

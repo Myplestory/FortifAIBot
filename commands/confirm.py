@@ -40,6 +40,11 @@ async def ask_confirm(
 ) -> bool:
     embed, files = embeds.confirm_embed(action, detail, icon=icon)
     view = ConfirmView(label_yes=f"Yes, {action.lower()}")
-    await interaction.response.send_message(embed=embed, files=files, view=view, ephemeral=True)
+    # Dual-mode: if the caller already deferred (defer-first pattern), route the
+    # confirm prompt through followup.send so we don't double-ACK the interaction.
+    if interaction.response.is_done():
+        await interaction.followup.send(embed=embed, files=files, view=view, ephemeral=True)
+    else:
+        await interaction.response.send_message(embed=embed, files=files, view=view, ephemeral=True)
     await view.wait()
     return bool(view.value)

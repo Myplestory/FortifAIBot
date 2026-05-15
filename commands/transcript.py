@@ -11,6 +11,8 @@ def register(tree: app_commands.CommandTree) -> None:
     @tree.command(name="transcript", description="Fetch the grading transcript (summary + per-question breakdown) for a run in the current session.")
     @app_commands.describe(run="Run id within the current session. Omit for the latest run.")
     async def transcript(interaction: discord.Interaction, run: int | None = None):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         active = parse.find_active_session(user_id)
         if active is None:
@@ -18,7 +20,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 "No current session. Open one with `/sessionbegin` first or `/sessionswitch` to one of your active sessions.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         runs = active.get("runs", []) or []
@@ -29,7 +31,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 f"Session `{session_name}` has no runs yet.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         if run is None:
@@ -41,7 +43,7 @@ def register(tree: app_commands.CommandTree) -> None:
                     f"Run `#{run}` not found in session `{session_name}`.",
                     icon=embeds.ICON_NAMES["error"],
                 )
-                await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+                await interaction.followup.send(embed=embed, files=files, ephemeral=True)
                 return
 
         run_id = str(target.get("id", "?"))
@@ -50,10 +52,9 @@ def register(tree: app_commands.CommandTree) -> None:
                 f"Run `#{run_id}` has no grading yet — try `/sweep mode:regrade`.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
-        await interaction.response.defer(ephemeral=True, thinking=True)
         all_embeds, _ = embeds.transcript_embeds(
             target,
             session_name=session_name,

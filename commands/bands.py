@@ -85,6 +85,8 @@ def register(tree: app_commands.CommandTree) -> None:
         score: float | None = None,
         target_band: app_commands.Choice[str] | None = None,
     ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         target_str = target_band.value if target_band else None
         inferred = False
         score_post: float | None = None
@@ -120,7 +122,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 f"`score` must be between 1.0 and 5.0 (got `{score}`).",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
 
         ladder_fields: list[tuple[str, str, bool]] = []
@@ -172,7 +174,11 @@ def register(tree: app_commands.CommandTree) -> None:
             "Each question is scored against **all 5 bands**. Your *aggregate* is the mean "
             "of the 5 question scores at your **primary** (target) band. Score N at band B "
             "means you delivered at the level of a B**N**-strength practitioner being measured "
-            "against B**B**'s rubric."
+            "against B**B**'s rubric.\n\n"
+            "_The aggregate and any score deltas are an **operational trend summary** — a "
+            "study signal for where to point your next session, not a psychometric interval "
+            "estimate and not a measurement of competence. Treat movement as direction, not "
+            "magnitude._"
         )
 
         scale_embed, scale_files = embeds.build(
@@ -209,7 +215,6 @@ def register(tree: app_commands.CommandTree) -> None:
         groups = embeds.split_embeds_for_messages(all_embeds)
         embeds.finalize_footer(groups)
 
-        await interaction.response.defer(ephemeral=True, thinking=True)
         for group in groups:
             files = embeds.rebuild_files_for_embeds(group)
             await interaction.followup.send(embeds=group, files=files, ephemeral=True)

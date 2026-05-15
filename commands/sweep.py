@@ -25,12 +25,19 @@ async def _regrade_one(user_id: str, session_id: str, run: dict[str, Any], sessi
     run_band = run.get("band") or session.get("band_preference", "B3")
     if not parse.grader_available(run_industry):
         return False, f"grader template missing for industry `{run_industry}`"
+    # Fix B/D: comparison points + entry_state are extracted from the runs
+    # chronologically up to this one, so regrading a mid-history run still
+    # compares backward and the coherence gradient measures only that window.
+    entry_state = generate.build_entry_state(session, run_band, str(run.get("id")))
+    comparison_points = generate.build_comparison_points(session, run_band, str(run.get("id")))
     try:
         grading = await asyncio.to_thread(
             generate.grade,
             industry=run_industry,
             answerer_band=run_band,
             current_run=run,
+            entry_state=entry_state,
+            comparison_points=comparison_points,
         )
     except generate.GradingError as e:
         return False, str(e)
@@ -44,6 +51,8 @@ def register(tree: app_commands.CommandTree) -> None:
     @app_commands.describe(mode="cleanup, regrade, regrade-last, catalog, or all. Default: all.")
     @app_commands.choices(mode=_SWEEP_MODES)
     async def sweep(interaction: discord.Interaction, mode: app_commands.Choice[str] | None = None):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_id = str(interaction.user.id)
         active = parse.find_active_session(user_id)
         if active is None:
@@ -51,7 +60,7 @@ def register(tree: app_commands.CommandTree) -> None:
                 "No current session. Open one with `/sessionbegin` first or `/sessionswitch` to one of your active sessions.",
                 icon=embeds.ICON_NAMES["error"],
             )
-            await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
+            await interaction.followup.send(embed=embed, files=files, ephemeral=True)
             return
         session_id = str(active["id"])
 
@@ -63,8 +72,6 @@ def register(tree: app_commands.CommandTree) -> None:
         # re-grade of the latest run regardless of existing grading state, used
         # to apply prompt/template changes to a previously-graded run.
         do_regrade_last = chosen == "regrade-last"
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
 
         cleaned_ids: list[str] = []
         if do_cleanup:
