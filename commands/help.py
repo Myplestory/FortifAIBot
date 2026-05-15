@@ -55,6 +55,7 @@ def register(tree: app_commands.CommandTree) -> None:
                     ("/analyze trends [n]", "Activity trends across runs."),
                     ("/analyze gaps [n]", "Untouched fields and topics."),
                     ("/analyze bias [n]", "Over-indexed fields relative to uniform coverage."),
+                    ("/analyze progression [n]", "Per-run aggregated-score trajectory (unlocks at 5 graded runs)."),
                 ],
             ),
             (

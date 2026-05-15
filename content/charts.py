@@ -116,6 +116,49 @@ def field_distribution(field_counts: dict[str, int], title: str = "Runs by field
     return _save_temp(fig)
 
 
+def score_progression(
+    pre_scores: list[float | None],
+    post_scores: list[float | None],
+    title: str = "Score progression",
+) -> Path:
+    """Two-line trajectory of per-run aggregated_score_pre and aggregated_score_post.
+    Lists are indexed by run order (oldest → newest); None entries become NaN so
+    matplotlib renders a gap (typical for legacy runs that only stored a
+    post-refinement score under aggregated_score).
+    """
+    if not pre_scores and not post_scores:
+        return empty_state(title, "No graded runs.")
+    n = max(len(pre_scores), len(post_scores))
+    xs = list(range(1, n + 1))
+    pre_y = [s if s is not None else float("nan") for s in pre_scores]
+    post_y = [s if s is not None else float("nan") for s in post_scores]
+    fig, ax = plt.subplots(figsize=(7, 3.4))
+    ax.plot(xs, pre_y, color=BLUE_HEX, linewidth=2, marker="o", markersize=5, label="Unassisted (pre)")
+    ax.plot(
+        xs,
+        post_y,
+        color=GREEN_HEX,
+        linewidth=1.6,
+        marker="s",
+        markersize=4,
+        alpha=0.85,
+        label="With refinement (post)",
+    )
+    ax.set_title(title)
+    ax.set_xlabel("Run")
+    ax.set_ylabel("Aggregated score")
+    ax.set_xticks(xs)
+    ax.set_ylim(0.5, 5.5)
+    ax.legend(
+        loc="best",
+        facecolor=BG_DARK_HEX,
+        edgecolor=FG_MUTED_HEX,
+        labelcolor=FG_TEXT_HEX,
+    )
+    fig.tight_layout()
+    return _save_temp(fig)
+
+
 def delta_diverging(deltas: dict[str, float], title: str = "Field deltas") -> Path:
     if not deltas:
         return empty_state(title, "No deltas to display.")

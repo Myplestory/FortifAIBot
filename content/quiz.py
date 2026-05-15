@@ -70,9 +70,13 @@ def skip_embed(idx: int) -> tuple[discord.Embed, list[discord.File]]:
 
 
 def _format_band_pre_post(bands_pre: list[dict[str, Any]], bands_post: list[dict[str, Any]]) -> str:
+    """Per-band score table. Columns are labelled `unassisted` (pre-refinement)
+    and `scaffolded` (post-refinement): the refinement probe is scaffolding, so
+    the framing is made explicit rather than left as a bare pre/post.
+    """
     pre_by_band = {b.get("band"): b.get("score") for b in (bands_pre or [])}
     post_by_band = {b.get("band"): b.get("score") for b in (bands_post or [])}
-    rows = ["band   pre  post  Δ"]
+    rows = ["band  unassisted  scaffolded   Δ"]
     for b in ("B1", "B2", "B3", "B4", "B5"):
         pre = pre_by_band.get(b)
         post = post_by_band.get(b)
@@ -83,7 +87,7 @@ def _format_band_pre_post(bands_pre: list[dict[str, Any]], bands_post: list[dict
             delta = f"+{d}" if d > 0 else (str(d) if d < 0 else "·")
         else:
             delta = "—"
-        rows.append(f"{b:<5}  {pre_s:>3}   {post_s:>3}  {delta:>3}")
+        rows.append(f"{b:<5} {pre_s:>10} {post_s:>11} {delta:>3}")
     return "```\n" + "\n".join(rows) + "\n```"
 
 
@@ -100,6 +104,7 @@ def question_breakdown_embed(
     topics = qrec.get("topics") or []
     ceiling = qrec.get("band_ceiling_post")
     transitional = qrec.get("transitional_post")
+    non_monotonic = qrec.get("non_monotonic_post")
 
     title_parts = [f"Q{idx}", f"`{field_slug}`"]
     if ceiling:
@@ -111,6 +116,11 @@ def question_breakdown_embed(
         desc_lines.append("Topics: " + ", ".join(f"`{t}`" for t in topics))
     if transitional:
         desc_lines.append(f"_Transitional toward **{transitional}**_")
+    if non_monotonic:
+        desc_lines.append(
+            " Non-monotonic band profile — a higher band outscored a lower one; "
+            "`ceiling` reflects only unbroken mastery from B1._"
+        )
     description = "\n".join(desc_lines)
 
     fields_listed: list[tuple[str, str, bool]] = []
@@ -119,7 +129,13 @@ def question_breakdown_embed(
     if scenario:
         fields_listed.extend(_chunk_field("Scenario", scenario))
 
-    response = (qrec.get("response") or "").strip() or "_(no response)_"
+    # Redacted text is authoritative for display — the grader strips proprietary
+    # terms into `*_redacted`. Fall back to raw only for legacy runs graded
+    # before redaction was persisted (re-grade with `/sweep regrade-last`).
+    response = (
+        (qrec.get("response_redacted") or qrec.get("response") or "").strip()
+        or "_(no response)_"
+    )
     fields_listed.extend(_chunk_field("Response", response))
 
     refine_form = qrec.get("refine_form")
@@ -128,7 +144,10 @@ def question_breakdown_embed(
         fields_listed.append(("Refinement", "_(skipped — no probe)_", False))
     elif refine_text:
         fields_listed.extend(_chunk_field("Refinement", refine_text))
-        refine_response = (qrec.get("refine_response") or "").strip() or "_(no reply)_"
+        refine_response = (
+            (qrec.get("refine_response_redacted") or qrec.get("refine_response") or "").strip()
+            or "_(no reply)_"
+        )
         fields_listed.extend(_chunk_field("Refinement response", refine_response))
 
     assessment = (qrec.get("assessment") or "").strip()

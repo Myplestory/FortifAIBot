@@ -13,8 +13,13 @@ from phases.generation import (
 )
 from phases.grading import (
     GradingError,
-    build_grader_system,
+    build_question_grader_system,
+    build_stitch_grader_system,
     grade,
+)
+from phases.movement import (
+    build_comparison_points,
+    build_entry_state,
 )
 from phases.refinement import (
     RefinementError,
@@ -30,8 +35,11 @@ __all__ = [
     "GradingError",
     "RefinementError",
     "_deterministic_fallback",
+    "build_comparison_points",
+    "build_entry_state",
     "build_generation_system",
-    "build_grader_system",
+    "build_question_grader_system",
+    "build_stitch_grader_system",
     "generate",
     "grade",
     "list_industries",

@@ -12,6 +12,7 @@ from content.charts import (
     empty_state,
     field_distribution,
     runs_over_time,
+    score_progression,
 )
 
 
@@ -21,4 +22,5 @@ __all__ = [
     "empty_state",
     "field_distribution",
     "runs_over_time",
+    "score_progression",
 ]

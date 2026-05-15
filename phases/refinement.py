@@ -162,7 +162,7 @@ def refine(
 
     `question_record` must contain {field, topics, question, response}.
     `answerer_band` is the session's primary evaluation band (B1..B5); the
-    refine LLM uses it to scope what counts as "highest-leverage gap".
+    refine LLM uses it to scope what counts as "highest-leverage ambiguity".
     """
     response = question_record.get("response", "") or ""
     if not response.strip():

@@ -69,7 +69,10 @@ async def on_ready():
     log.info("industries available: %s", industries or "(none)")
     for industry in industries:
         if not parse.grader_available(industry):
-            log.warning("templates/%s/grader.md is empty — grading unavailable for this industry.", industry)
+            log.warning(
+                "templates/%s/grader_question.md is missing or empty — grading unavailable for this industry.",
+                industry,
+            )
     scheduler.start(asyncio.get_running_loop(), schedule_cmd.make_on_schedule_fire(bot))
 
     # Slash command sync. Global syncs propagate over up to ~1 hour, which

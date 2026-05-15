@@ -310,14 +310,19 @@ async def _run_quiz(
         # Build a freshly-persisted run snapshot for the grader.
         active_session = parse.find_active_session_by_id(str(interaction_user.id), session_id) or {}
         current_run = next((r for r in active_session.get("runs", []) if str(r.get("id")) == str(run_id)), None)
+        # Fix B/D: entry_state drives the `-1` within-session deltas (with the
+        # coherence gradient over the session's stats); comparison_points drives
+        # the 1/5/10/30 cross-run deltas. Both extracted from persisted run data.
+        entry_state = generate.build_entry_state(active_session, band, str(run_id))
+        comparison_points = generate.build_comparison_points(active_session, band, str(run_id))
         try:
             grading = await asyncio.to_thread(
                 generate.grade,
                 industry=industry,
                 answerer_band=band,
                 current_run=current_run or {},
-                entry_state=None,
-                comparison_points=None,
+                entry_state=entry_state,
+                comparison_points=comparison_points,
             )
             parse.apply_grading(str(interaction_user.id), session_id, run_id, grading)
             parse.apply_meta_updates(grading.get("meta_updates") or {})

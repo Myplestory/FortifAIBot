@@ -166,8 +166,8 @@ def critical_failure_config() -> CriticalFailureConfig:
 
 
 def render_band_table_md() -> str:
-    """Render the verbatim-band table that's stitched into templates/swe/grader.md.
-    Replaces the literal table at grader.md:9-15.
+    """Render the verbatim-band table that's stitched into the grader prompt
+    (templates/swe/grader_question.md, via the {{BAND_TABLE_VERBATIM}} placeholder).
     """
     m = load_band_mappings()
     lines = [

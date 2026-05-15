@@ -50,6 +50,28 @@ class AnalyzeView:
     grading_unavailable: bool = True
 
 
+# Per-run score progression unlocks at this many graded runs in the active session.
+# Below the threshold the chart is suppressed and the embed surfaces lack of data —
+# a 1–4-point line is noisier than informative for "growth or decline" framing.
+PROGRESSION_THRESHOLD = 5
+
+
+@dataclass
+class ProgressionView:
+    title: str
+    subtitle: str
+    pre_scores: list[float | None]
+    post_scores: list[float | None]
+    threshold: int
+    graded_count: int
+    insufficient_data: bool
+    first_pre: float | None = None
+    last_pre: float | None = None
+    net_change: float | None = None
+    min_pre: float | None = None
+    max_pre: float | None = None
+
+
 def _user_runs(discord_user_id: str) -> list[tuple[dict[str, Any], dict[str, Any]]]:
     out: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for s in parse.all_user_sessions(discord_user_id):
@@ -211,6 +233,65 @@ def analyze_gaps(discord_user_id: str, meta: dict[str, Any], n: int | None = Non
         over_indexed=[],
         deltas={},
     )
+
+
+def _is_graded(run: dict[str, Any]) -> bool:
+    return run.get("status") == "complete" and (
+        run.get("aggregated_score_pre") is not None
+        or run.get("aggregated_score") is not None
+    )
+
+
+def _score_pair(run: dict[str, Any]) -> tuple[float | None, float | None]:
+    """Return (pre, post) per-run scores. Legacy runs only have aggregated_score
+    (post-refinement), matching the fallback in commands/bands.py — pre stays
+    None for those so the chart shows a gap rather than a fake duplicate point.
+    """
+    pre = run.get("aggregated_score_pre")
+    post = run.get("aggregated_score_post")
+    if post is None:
+        post = run.get("aggregated_score")
+    pre_f = float(pre) if isinstance(pre, (int, float)) else None
+    post_f = float(post) if isinstance(post, (int, float)) else None
+    return pre_f, post_f
+
+
+def analyze_progression(discord_user_id: str, n: int | None = None) -> ProgressionView:
+    """Per-run aggregated_score_pre/post across the scoped runs. Surfaces
+    `insufficient_data=True` until graded_count >= PROGRESSION_THRESHOLD; a
+    1–4-point trend is noise, so the embed renders a lack-of-data message and
+    suppresses the chart in that case.
+    """
+    runs = parse.runs_by_scope(discord_user_id, n)
+    graded = [r for r in runs if _is_graded(r)]
+    pre_scores: list[float | None] = []
+    post_scores: list[float | None] = []
+    for r in graded:
+        pre, post = _score_pair(r)
+        pre_scores.append(pre)
+        post_scores.append(post)
+
+    insufficient = len(graded) < PROGRESSION_THRESHOLD
+    view = ProgressionView(
+        title="Score progression",
+        subtitle=_scope_subtitle(n),
+        pre_scores=pre_scores,
+        post_scores=post_scores,
+        threshold=PROGRESSION_THRESHOLD,
+        graded_count=len(graded),
+        insufficient_data=insufficient,
+    )
+    if not insufficient:
+        # Summary stats lean on aggregated_score_pre — the unassisted signal —
+        # so a legacy run with only post is excluded from first/last/range.
+        pre_real = [s for s in pre_scores if s is not None]
+        if pre_real:
+            view.first_pre = pre_real[0]
+            view.last_pre = pre_real[-1]
+            view.net_change = round(pre_real[-1] - pre_real[0], 1)
+            view.min_pre = min(pre_real)
+            view.max_pre = max(pre_real)
+    return view
 
 
 def analyze_bias(discord_user_id: str, meta: dict[str, Any], n: int | None = None) -> AnalyzeView:

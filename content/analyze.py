@@ -33,3 +33,41 @@ def analyze_embed_from_view(
         icon=ICON_NAMES["analyze"],
         chart=chart_path,
     )
+
+
+def progression_embed_from_view(
+    view: analytics.ProgressionView,
+    chart_path: Path | None,
+) -> tuple[discord.Embed, list[discord.File]]:
+    if view.insufficient_data:
+        message = (
+            f"Score progression unlocks at {view.threshold} graded runs in the session. "
+            f"You have {view.graded_count}."
+        )
+        return build(
+            title=view.title,
+            description=view.subtitle,
+            fields=[("Lack of data", message, False)],
+            icon=ICON_NAMES["analyze"],
+            chart=None,
+        )
+    fields_listed: list[tuple[str, str, bool]] = []
+    if view.first_pre is not None and view.last_pre is not None and view.net_change is not None:
+        sign = "+" if view.net_change > 0 else ""  # negative values carry their own sign in the f-string
+        fields_listed.append(
+            (
+                "Net change (unassisted)",
+                f"{view.first_pre:.1f} → {view.last_pre:.1f} ({sign}{view.net_change:.1f})",
+                True,
+            )
+        )
+    if view.min_pre is not None and view.max_pre is not None:
+        fields_listed.append(("Range (unassisted)", f"{view.min_pre:.1f} – {view.max_pre:.1f}", True))
+    fields_listed.append(("Graded runs", str(view.graded_count), True))
+    return build(
+        title=view.title,
+        description=view.subtitle,
+        fields=fields_listed,
+        icon=ICON_NAMES["analyze"],
+        chart=chart_path,
+    )

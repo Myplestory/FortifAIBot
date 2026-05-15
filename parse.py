@@ -562,8 +562,9 @@ def apply_meta_updates(meta_updates: dict[str, Any]) -> None:
                 }
                 changed = True
                 continue
-            # Merge per grader.md rules: keep existing name/description unless incoming substantively
-            # refines (we treat "longer" as the substantive signal); ALWAYS union citations; replace reasoning.
+            # Merge per the grader_question.md criteria rules: keep existing name/description unless
+            # incoming substantively refines (we treat "longer" as the substantive signal);
+            # ALWAYS union citations; replace reasoning.
             if incoming.get("description") and len(incoming["description"]) > len(existing_band.get("description", "")):
                 existing_band["description"] = incoming["description"]
                 if incoming.get("name"):
@@ -583,7 +584,17 @@ def apply_meta_updates(meta_updates: dict[str, Any]) -> None:
 
 
 def apply_grading(user_id: str, session_id: str, run_id: str, grading: dict[str, Any]) -> None:
-    """Merge Phase 4 grading output into the matching run record under session_id."""
+    """Merge Phase 4 grading output into the matching run record under session_id.
+
+    A run is *finalized* once it has both been graded AND been superseded by a
+    newer run: its scores and its meta.json contributions are locked. Only the
+    latest run (a fresh `/knowledgeharden`, or `/sweep regrade-last`) or a
+    never-graded failed run (`/sweep regrade`) is a legal write target here.
+    Refusing to overwrite a finalized run is what bounds regrade blast radius —
+    a stale prior grading cannot be re-applied into the shared meta.json catalog
+    behind the user's back. This is the chokepoint for every grading write, so
+    the guard lives here rather than in each `/sweep` mode.
+    """
     active = _read_active()
     found = _find_active_by_id(active, user_id, session_id)
     if not found:
@@ -593,6 +604,14 @@ def apply_grading(user_id: str, session_id: str, run_id: str, grading: dict[str,
     target = next((r for r in runs if str(r.get("id")) == str(run_id)), None)
     if target is None:
         raise RuntimeError(f"run {run_id!r} not found in session {session_id!r}")
+
+    is_latest = bool(runs) and str(runs[-1].get("id")) == str(run_id)
+    if _run_has_grading(target) and not is_latest:
+        raise RuntimeError(
+            f"run {run_id!r} is finalized (already graded and superseded by a "
+            "newer run); regrading it is not permitted — use `/sweep regrade-last` "
+            "on the current run instead"
+        )
 
     agg = grading.get("run_aggregation", {}) or {}
     target["aggregated_score"] = agg.get("aggregated_score")
@@ -607,7 +626,6 @@ def apply_grading(user_id: str, session_id: str, run_id: str, grading: dict[str,
     target["field_delta"] = grading.get("field_delta", {"runs": {}, "time": {}})
     target["topic_delta"] = grading.get("topic_delta", {"runs": {}, "time": {}})
     target["session_summary"] = grading.get("session_summary", {})
-    target["report_markdown"] = grading.get("report_markdown", "")
 
     qg_list = grading.get("questions_grading", []) or []
     questions = target.get("questions", []) or []
@@ -620,11 +638,20 @@ def apply_grading(user_id: str, session_id: str, run_id: str, grading: dict[str,
         if not qg:
             continue
         qrec = wrap[key]
+        # `reference` is the grader's committed correct-answer model (Fix C) —
+        # persisted as the grounding audit trail for a disputed score.
+        qrec["reference"] = qg.get("reference")
         qrec["bands_pre"] = qg.get("bands_pre", [])
         qrec["bands"] = qg.get("bands_post", [])
         qrec["band_ceiling_post"] = qg.get("band_ceiling_post")
         qrec["transitional_post"] = qg.get("transitional_post")
+        qrec["non_monotonic_post"] = qg.get("non_monotonic_post")
         qrec["assessment"] = qg.get("assessment", "")
+        # Redacted text is the only response form the display path (`/transcript`
+        # and the run-complete embeds) is allowed to surface — persist it onto
+        # the run so raw proprietary text never reaches a rendered transcript.
+        qrec["response_redacted"] = qg.get("response_redacted", "")
+        qrec["refine_response_redacted"] = qg.get("refine_response_redacted", "")
         qrec["literature"] = qg.get("literature", [])
 
     _write_active(active)
@@ -678,6 +705,11 @@ def cleanup_abandoned_runs(user_id: str, session_id: str | None = None) -> list[
 def runs_needing_grading(user_id: str, session_id: str | None = None) -> list[dict[str, Any]]:
     """Runs in the named session (or current session) that finished with
     responses but never produced an aggregated score.
+
+    Every run returned here is un-graded by construction, so none of them are
+    *finalized* — `/sweep regrade` may grade them in place wherever they sit in
+    history without tripping the `apply_grading` finalized-run guard. A run that
+    was graded successfully and later superseded is never in this list.
     """
     s = find_active_session(user_id) if session_id is None else find_active_session_by_id(user_id, session_id)
     if not s:
@@ -809,5 +841,8 @@ def segment(bank: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def grader_available(industry: str = "swe") -> bool:
-    p = ROOT / "templates" / industry / "grader.md"
+    # The grader split into a per-question prompt + a qualitative-stitch prompt
+    # (Fix E). The per-question prompt is the one that actually scores answers,
+    # so its presence is what gates grading for an industry.
+    p = ROOT / "templates" / industry / "grader_question.md"
     return p.exists() and p.stat().st_size > 0
