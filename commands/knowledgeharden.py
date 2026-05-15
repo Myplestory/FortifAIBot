@@ -45,7 +45,7 @@ def _validate_args_against_meta(
 # probe is recall under pressure with 5 minutes.
 _ANSWER_TIMEOUT = 600.0
 _REFINE_TIMEOUT = 300.0
-_COUNTDOWN_TICK_SECONDS = 30.0
+_COUNTDOWN_TICK_SECONDS = 5.0
 
 
 async def _wait_for_thread_message(
@@ -84,6 +84,8 @@ async def _update_countdown_field(
         return
     new_value = f"`{embeds.format_remaining(remaining_seconds)}` until timeout"
     embed.set_field_at(target_idx, name=embeds.COUNTDOWN_FIELD_NAME, value=new_value, inline=target_inline)
+    if remaining_seconds <= 60:
+        embed.colour = embeds.ALERT_RED
     try:
         await message.edit(embed=embed)
     except discord.HTTPException:
